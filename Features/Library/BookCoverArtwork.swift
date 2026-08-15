@@ -1,9 +1,72 @@
+import AppKit
 import SwiftUI
 
 struct BookCoverArtwork: View {
     let book: LibraryBook
+    let loadImageData: ((Asset) async throws -> Data)?
+    let onLoadError: ((Error) -> Void)?
+    @State private var loadedAssetID: UUID?
+    @State private var imageData: Data?
+
+    init(
+        book: LibraryBook,
+        loadImageData: ((Asset) async throws -> Data)? = nil,
+        onLoadError: ((Error) -> Void)? = nil
+    ) {
+        self.book = book
+        self.loadImageData = loadImageData
+        self.onLoadError = onLoadError
+    }
 
     var body: some View {
+        Group {
+            // SwiftUI has no Data-backed image initializer on macOS. AppKit is
+            // isolated here solely to decode the small, generated thumbnail.
+            if let imageData = displayedImageData, let image = NSImage(data: imageData) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                generatedArtwork
+            }
+        }
+        .aspectRatio(LibraryDesignTokens.coverAspectRatio, contentMode: .fit)
+        .contentShape(Rectangle())
+        .clipShape(RoundedRectangle(cornerRadius: LibraryDesignTokens.coverCornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: LibraryDesignTokens.coverCornerRadius)
+                .strokeBorder(
+                    Color.white.opacity(0.14),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.14), radius: 5, y: 3)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Cover for \(book.title)")
+        .task(id: book.coverAsset?.id) {
+            loadedAssetID = nil
+            imageData = nil
+            guard let asset = book.coverAsset, let loadImageData else { return }
+
+            do {
+                let loadedData = try await loadImageData(asset)
+                try Task.checkCancellation()
+                loadedAssetID = asset.id
+                imageData = loadedData
+            } catch is CancellationError {
+                return
+            } catch {
+                onLoadError?(error)
+            }
+        }
+    }
+
+    private var displayedImageData: Data? {
+        guard loadedAssetID == book.coverAsset?.id else { return nil }
+        return imageData
+    }
+
+    private var generatedArtwork: some View {
         ZStack(alignment: .bottomLeading) {
             RoundedRectangle(cornerRadius: LibraryDesignTokens.coverCornerRadius)
                 .fill(
@@ -29,16 +92,6 @@ struct BookCoverArtwork: View {
             .foregroundStyle(.white)
             .padding(14)
         }
-        .aspectRatio(LibraryDesignTokens.coverAspectRatio, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: LibraryDesignTokens.coverCornerRadius))
-        .overlay {
-            RoundedRectangle(cornerRadius: LibraryDesignTokens.coverCornerRadius)
-                .strokeBorder(
-                    Color.white.opacity(0.14),
-                    lineWidth: 1
-                )
-        }
-        .shadow(color: .black.opacity(0.14), radius: 5, y: 3)
     }
 
     private var decorativePattern: some View {

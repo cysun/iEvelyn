@@ -25,6 +25,8 @@ struct LibraryContentView: View {
                 case .grid:
                     LibraryGridView(
                         books: model.visibleBooks,
+                        loadCoverImage: model.loadCoverImage,
+                        onCoverLoadError: model.reportCoverLoadFailure,
                         onOpenBook: onOpenBook,
                         onBookAction: handleBookAction
                     )

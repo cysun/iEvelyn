@@ -3,11 +3,15 @@ import SwiftUI
 struct BookDetailView: View {
     let book: LibraryBook?
     let isBusy: Bool
+    let loadCoverImage: (Asset) async throws -> Data
+    let onCoverLoadError: (Error) -> Void
     let onEdit: (LibraryBook) -> Void
     let onToggleFavorite: (LibraryBook) -> Void
     let onMoveToTrash: (LibraryBook) -> Void
     let onRestore: (LibraryBook) -> Void
     let onDeletePermanently: (LibraryBook) -> Void
+    let onChooseCover: (LibraryBook) -> Void
+    let onRemoveCover: (LibraryBook) -> Void
 
     @State private var isConfirmingPermanentDeletion = false
 
@@ -15,9 +19,17 @@ struct BookDetailView: View {
         if let book {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    BookCoverArtwork(book: book)
+                    BookCoverArtwork(
+                        book: book,
+                        loadImageData: loadCoverImage,
+                        onLoadError: onCoverLoadError
+                    )
                         .frame(maxWidth: 190)
                         .frame(maxWidth: .infinity)
+
+                    if !book.isTrashed {
+                        coverActions(book)
+                    }
 
                     titleSection(book)
                     actionSection(book)
@@ -77,6 +89,31 @@ struct BookDetailView: View {
             )
             .accessibilityIdentifier("library-detail-empty")
         }
+    }
+
+    private func coverActions(_ book: LibraryBook) -> some View {
+        HStack {
+            Spacer()
+
+            Button(
+                book.coverAsset == nil ? "Choose Cover…" : "Replace Cover…",
+                systemImage: "photo.badge.plus"
+            ) {
+                onChooseCover(book)
+            }
+            .accessibilityIdentifier("book-choose-cover")
+
+            if book.coverAsset != nil {
+                Button("Remove Cover", systemImage: "photo.badge.minus", role: .destructive) {
+                    onRemoveCover(book)
+                }
+                .accessibilityIdentifier("book-remove-cover")
+            }
+
+            Spacer()
+        }
+        .buttonStyle(.bordered)
+        .disabled(isBusy)
     }
 
     private func titleSection(_ book: LibraryBook) -> some View {

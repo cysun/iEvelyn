@@ -2,6 +2,8 @@ import SwiftUI
 
 struct LibraryGridView: View {
     let books: [LibraryBook]
+    let loadCoverImage: (Asset) async throws -> Data
+    let onCoverLoadError: (Error) -> Void
     let onOpenBook: (LibraryBook) -> Void
     let onBookAction: (LibraryBook, BookManagementAction) -> Void
 
@@ -24,7 +26,11 @@ struct LibraryGridView: View {
                         Button {
                             onOpenBook(book)
                         } label: {
-                            BookCoverArtwork(book: book)
+                            BookCoverArtwork(
+                                book: book,
+                                loadImageData: loadCoverImage,
+                                onLoadError: onCoverLoadError
+                            )
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(book.title), by \(book.authorLine)")

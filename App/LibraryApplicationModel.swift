@@ -61,8 +61,22 @@ final class LibraryApplicationModel {
                 try await repository.seedSampleLibrary()
             }
 #endif
+            try await repository.prepareAssetStorage()
+            let assetRepairReport = try await repository.repairAssetStorage()
             self.repository = repository
             isLoading = false
+
+            if assetRepairReport.failedRemovalCount > 0 {
+                alert = LibraryApplicationAlert(
+                    title: "Asset Cleanup Needed",
+                    message: "\(assetRepairReport.failedRemovalCount) obsolete asset file(s) could not be removed. iEvelyn will retry the cleanup the next time the library opens."
+                )
+            } else if !assetRepairReport.missingReferencedRelativePaths.isEmpty {
+                alert = LibraryApplicationAlert(
+                    title: "Some Asset Files Are Missing",
+                    message: "\(assetRepairReport.missingReferencedRelativePaths.count) library asset file(s) are missing. Affected covers will use generated artwork until they are replaced or removed."
+                )
+            }
         } catch {
             isLoading = false
             loadErrorMessage = error.localizedDescription

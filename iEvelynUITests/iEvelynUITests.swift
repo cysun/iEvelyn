@@ -55,6 +55,11 @@ final class iEvelynUITests: XCTestCase {
 
         XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Octavia E. Butler"].exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["book-choose-cover"].exists,
+            "Book Info should expose cover management without occupying the main library canvas."
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["book-remove-cover"].exists)
         app.buttons["Close"].click()
         XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
     }

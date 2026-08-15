@@ -1,10 +1,13 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryRootView: View {
     @State private var model: LibraryViewModel
     @State private var editorConfiguration: BookEditorConfiguration?
     @State private var bookInfoPresentation: BookInfoPresentation?
     @State private var readerPresentation: ReaderPresentation?
+    @State private var coverImportBookID: UUID?
+    @State private var isCoverImporterPresented = false
 
     init(repository: any LibraryRepository) {
         _model = State(initialValue: LibraryViewModel(repository: repository))
@@ -68,6 +71,8 @@ struct LibraryRootView: View {
                 BookDetailView(
                     book: model.book(id: presentation.id),
                     isBusy: model.isPerformingOperation,
+                    loadCoverImage: model.loadCoverImage,
+                    onCoverLoadError: model.reportCoverLoadFailure,
                     onEdit: { book in
                         presentEditorAfterClosingBookInfo(for: book)
                     },
@@ -85,6 +90,13 @@ struct LibraryRootView: View {
                     onDeletePermanently: { book in
                         bookInfoPresentation = nil
                         Task { await model.permanentlyDelete(book) }
+                    },
+                    onChooseCover: { book in
+                        coverImportBookID = book.id
+                        isCoverImporterPresented = true
+                    },
+                    onRemoveCover: { book in
+                        Task { await model.removeCover(from: book) }
                     }
                 )
                 .toolbar {
@@ -120,6 +132,25 @@ struct LibraryRootView: View {
             }
             .padding(32)
             .frame(minWidth: 460, minHeight: 260)
+        }
+        .fileImporter(
+            isPresented: $isCoverImporterPresented,
+            allowedContentTypes: [.jpeg, .png, .heic],
+            allowsMultipleSelection: false
+        ) { result in
+            let bookID = coverImportBookID
+            coverImportBookID = nil
+
+            switch result {
+            case .success(let urls):
+                guard let bookID, let sourceURL = urls.first else { return }
+                Task {
+                    await model.importCover(for: bookID, from: sourceURL)
+                }
+            case .failure(let error):
+                guard (error as NSError).code != NSUserCancelledError else { return }
+                model.reportCoverImporterFailure(error)
+            }
         }
         .alert(item: $model.alert) { alert in
             Alert(

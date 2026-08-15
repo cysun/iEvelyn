@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 4A — Reader-first library navigation redesign, accepted on 2026-08-15.
-- Implementation status: accepted after the manual checkpoint; Step 5 has not started.
+- Current milestone: Step 5 — Cover and asset storage.
+- Implementation status: awaiting manual test; Step 4A was accepted and committed as `26e9225`.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -298,7 +298,7 @@ Safely import and display cover art while establishing the reusable asset subsys
 ### Manual checkpoint
 
 - Import JPEG, PNG, and HEIC covers.
-- Verify grid/list/detail display and thumbnail quality.
+- Verify imported artwork and thumbnail quality in the grid and Book Info; confirm the compact list remains intentionally text-led without tiny covers.
 - Replace and remove a cover.
 - Delete the original source image and confirm the app's copy still works.
 - Relaunch and verify persistence.
@@ -646,7 +646,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 3 | SQLite persistence with GRDB | Accepted | GRDB 7.11.1 resolved; Debug and Release builds, 18 unit/integration tests, and three UI smoke tests passed; persistence, multi-window observation, and Debug reset checkpoint accepted on 2026-08-14. |
 | 4 | Book management | Accepted | Debug and Release builds, 23 unit/integration tests, and four UI tests passed; manual checkpoint accepted on 2026-08-15. |
 | 4A | Reader-first library navigation redesign | Accepted | Debug and Release builds, 24 unit/integration tests, and five UI tests passed; reader-first grid/list design, streamlined metadata, and text-led list accepted on 2026-08-15. |
-| 5 | Cover and asset storage | Not started | |
+| 5 | Cover and asset storage | Awaiting manual test | JPEG/PNG/HEIC import, UUID-addressed originals, cached thumbnails, safe asset URLs, replace/remove, orphan repair, and permanent cleanup implemented without a schema change or dependency; Debug/Release builds and all 38 tests pass. |
 | 6 | Chapter management | Not started | |
 | 7 | Markdown chapter editor | Not started | |
 | 8 | Markdown rendering engine | Not started | |

@@ -12,6 +12,7 @@ final class LibraryViewModel {
     private(set) var isPerformingOperation = false
     var alert: LibraryViewModelAlert?
     private var isObserving = false
+    private let coverCache = NSCache<NSUUID, NSData>()
     private let now: @Sendable () -> Date
 
     var destination: LibraryDestination = .allBooks
@@ -33,6 +34,8 @@ final class LibraryViewModel {
         self.now = now
         books = initialBooks
         isLoading = initialBooks.isEmpty
+        coverCache.countLimit = 80
+        coverCache.totalCostLimit = 64 * 1_024 * 1_024
     }
 
     var visibleBooks: [LibraryBook] {
@@ -47,6 +50,26 @@ final class LibraryViewModel {
 
     func book(id: LibraryBook.ID) -> LibraryBook? {
         books.first { $0.id == id }
+    }
+
+    func loadCoverImage(for asset: Asset) async throws -> Data {
+        let cacheKey = asset.id as NSUUID
+        if let cachedData = coverCache.object(forKey: cacheKey) {
+            return cachedData as Data
+        }
+
+        let data = try await repository.coverThumbnailData(for: asset)
+        try Task.checkCancellation()
+        coverCache.setObject(data as NSData, forKey: cacheKey, cost: data.count)
+        return data
+    }
+
+    func reportCoverLoadFailure(_ error: Error) {
+        guard alert == nil else { return }
+        alert = LibraryViewModelAlert(
+            title: "Cover Could Not Be Loaded",
+            message: error.localizedDescription
+        )
     }
 
     func clearSearch() {
@@ -93,6 +116,25 @@ final class LibraryViewModel {
         await performOperation(errorTitle: "Could Not Delete Book") {
             try await repository.deleteBookPermanently(id: book.id)
         }
+    }
+
+    func importCover(for bookID: UUID, from sourceURL: URL) async {
+        await performOperation(errorTitle: "Could Not Import Cover") {
+            try await repository.importCover(bookID: bookID, from: sourceURL, at: now())
+        }
+    }
+
+    func removeCover(from book: LibraryBook) async {
+        await performOperation(errorTitle: "Could Not Remove Cover") {
+            try await repository.removeCover(bookID: book.id, at: now())
+        }
+    }
+
+    func reportCoverImporterFailure(_ error: Error) {
+        alert = LibraryViewModelAlert(
+            title: "Could Not Choose Cover",
+            message: error.localizedDescription
+        )
     }
 
     func markOpened(_ book: LibraryBook) async {
@@ -143,6 +185,18 @@ final class LibraryViewModel {
             try await operation()
             return true
         } catch is CancellationError {
+            return false
+        } catch let error as LibraryAssetError {
+            let title: String
+            if case .cleanupIncomplete = error {
+                title = "Asset Cleanup Needed"
+            } else {
+                title = errorTitle
+            }
+            alert = LibraryViewModelAlert(
+                title: title,
+                message: error.localizedDescription
+            )
             return false
         } catch {
             alert = LibraryViewModelAlert(

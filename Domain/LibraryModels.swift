@@ -185,7 +185,7 @@ nonisolated enum AssetPurpose: String, Codable, CaseIterable, Sendable {
     case attachment
 }
 
-nonisolated struct Asset: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct Asset: Codable, Identifiable, Equatable, Hashable, Sendable {
     let id: UUID
     let bookID: UUID
     var chapterID: UUID?

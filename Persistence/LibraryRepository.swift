@@ -10,6 +10,9 @@ nonisolated protocol LibraryRepository: Sendable {
     func restoreBook(id: UUID, at date: Date) async throws
     func markBookOpened(id: UUID, at date: Date) async throws
     func deleteBookPermanently(id: UUID) async throws
+    func importCover(bookID: UUID, from sourceURL: URL, at date: Date) async throws
+    func removeCover(bookID: UUID, at date: Date) async throws
+    func coverThumbnailData(for asset: Asset) async throws -> Data
 }
 
 nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
@@ -60,13 +63,27 @@ extension LibraryRepository {
     func deleteBookPermanently(id: UUID) async throws {
         throw LibraryRepositoryError.readOnlyRepository
     }
+
+    func importCover(bookID: UUID, from sourceURL: URL, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func removeCover(bookID: UUID, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func coverThumbnailData(for asset: Asset) async throws -> Data {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
 }
 
 nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
     let database: LibraryDatabase
+    let assetStore: LibraryAssetStore
 
-    init(database: LibraryDatabase) {
+    init(database: LibraryDatabase, assetStore: LibraryAssetStore? = nil) {
         self.database = database
+        self.assetStore = assetStore ?? LibraryAssetStore.defaultStore(for: database)
     }
 
     func observeLibraryBooks() -> AsyncThrowingStream<[LibraryBook], Error> {
@@ -231,6 +248,125 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             }
             _ = try book.delete(database)
         }
+
+        let report = await assetStore.removeBookStorage(bookID: id)
+        if report.failedRemovalCount > 0 {
+            throw LibraryAssetError.cleanupIncomplete(
+                completedAction: "The book was permanently deleted",
+                remainingFileCount: report.failedRemovalCount
+            )
+        }
+    }
+
+    func importCover(
+        bookID: UUID,
+        from sourceURL: URL,
+        at date: Date = .now
+    ) async throws {
+        let preparedAsset = try await assetStore.prepareCoverImport(
+            bookID: bookID,
+            sourceURL: sourceURL,
+            at: date
+        )
+
+        let previousCover: Asset?
+        do {
+            previousCover = try await database.write { database in
+                guard var book = try Book.fetchOne(database, key: bookID.databaseString) else {
+                    throw LibraryRepositoryError.bookNotFound
+                }
+
+                let previousCover = try Self.fetchCover(bookID: bookID, database: database)
+                if let previousCover {
+                    _ = try previousCover.delete(database)
+                }
+                try preparedAsset.asset.insert(database)
+
+                book.updatedAt = date
+                try book.update(database)
+                return previousCover
+            }
+        } catch {
+            _ = await assetStore.discardPreparedAsset(preparedAsset)
+            throw error
+        }
+
+        if let previousCover {
+            let report = await assetStore.removeFiles(for: [previousCover])
+            if report.failedRemovalCount > 0 {
+                throw LibraryAssetError.cleanupIncomplete(
+                    completedAction: "The cover was replaced",
+                    remainingFileCount: report.failedRemovalCount
+                )
+            }
+        }
+    }
+
+    func removeCover(bookID: UUID, at date: Date = .now) async throws {
+        let previousCover = try await database.write { database in
+            guard var book = try Book.fetchOne(database, key: bookID.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+            guard let previousCover = try Self.fetchCover(bookID: bookID, database: database) else {
+                return nil as Asset?
+            }
+
+            _ = try previousCover.delete(database)
+            book.updatedAt = date
+            try book.update(database)
+            return previousCover
+        }
+
+        guard let previousCover else { return }
+        let report = await assetStore.removeFiles(for: [previousCover])
+        if report.failedRemovalCount > 0 {
+            throw LibraryAssetError.cleanupIncomplete(
+                completedAction: "The cover was removed",
+                remainingFileCount: report.failedRemovalCount
+            )
+        }
+    }
+
+    func coverThumbnailData(for asset: Asset) async throws -> Data {
+        try await assetStore.thumbnailData(for: asset)
+    }
+
+    func bookAssetURL(for asset: Asset) throws -> URL {
+        try BookAssetReference(bookID: asset.bookID, assetID: asset.id).url()
+    }
+
+    func resolveBookAssetURL(_ url: URL) async throws -> URL {
+        let reference = try BookAssetReference(url: url)
+        guard let asset = try await database.read({ database in
+            try Asset.fetchOne(
+                database,
+                sql: "SELECT * FROM assets WHERE id = ? AND bookID = ?",
+                arguments: [reference.assetID.databaseString, reference.bookID.databaseString]
+            )
+        }) else {
+            throw LibraryAssetError.assetReferenceNotFound
+        }
+        return try await assetStore.storedFileURL(for: asset)
+    }
+
+    func auditAssetStorage() async throws -> AssetStorageAudit {
+        let assets = try await fetchAssets()
+        return await assetStore.audit(referencedAssets: assets)
+    }
+
+    func prepareAssetStorage() async throws {
+        try await assetStore.prepareLibraryLayout()
+    }
+
+    func repairAssetStorage() async throws -> AssetStorageRepairReport {
+        let assets = try await fetchAssets()
+        return await assetStore.repair(referencedAssets: assets)
+    }
+
+    func fetchAssets() async throws -> [Asset] {
+        try await database.read { database in
+            try Asset.fetchAll(database)
+        }
     }
 
     func insertAuthor(_ author: Author) async throws {
@@ -364,12 +500,18 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             database,
             sql: "SELECT bookID, overallProgress FROM readingProgress"
         )
+        let covers = try Asset.fetchAll(
+            database,
+            sql: "SELECT * FROM assets WHERE purpose = ?",
+            arguments: [AssetPurpose.cover.rawValue]
+        )
 
         let authorsByBook = Dictionary(grouping: authors, by: \.bookID)
         let tagsByBook = Dictionary(grouping: tags, by: \.bookID)
         let progressByBook = Dictionary(
             uniqueKeysWithValues: progressRows.map { ($0.bookID, $0.overallProgress) }
         )
+        let coverByBook = Dictionary(uniqueKeysWithValues: covers.map { ($0.bookID, $0) })
 
         return books.map { book in
             let progress = progressByBook[book.id]
@@ -385,6 +527,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 isCurrentlyReading: progress != nil,
                 readingProgress: progress,
                 isTrashed: book.trashedAt != nil,
+                coverAsset: coverByBook[book.id],
                 coverStyle: .derived(from: book.id),
                 updatedAt: book.updatedAt,
                 lastOpenedAt: book.lastOpenedAt,
@@ -424,6 +567,14 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             try BookAuthor(bookID: bookID, authorID: author.id, position: position)
                 .insert(database)
         }
+    }
+
+    private static func fetchCover(bookID: UUID, database: Database) throws -> Asset? {
+        try Asset.fetchOne(
+            database,
+            sql: "SELECT * FROM assets WHERE bookID = ? AND purpose = ?",
+            arguments: [bookID.databaseString, AssetPurpose.cover.rawValue]
+        )
     }
 }
 
@@ -534,6 +685,14 @@ extension GRDBLibraryRepository {
             try database.execute(sql: "DELETE FROM books")
             try database.execute(sql: "DELETE FROM authors")
             try database.execute(sql: "DELETE FROM tags")
+        }
+
+        let report = await assetStore.repair(referencedAssets: [])
+        if report.failedRemovalCount > 0 {
+            throw LibraryAssetError.cleanupIncomplete(
+                completedAction: "The sample library was reset",
+                remainingFileCount: report.failedRemovalCount
+            )
         }
     }
 }

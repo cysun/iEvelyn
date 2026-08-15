@@ -15,6 +15,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
     let isCurrentlyReading: Bool
     let readingProgress: Double?
     let isTrashed: Bool
+    let coverAsset: Asset?
     let coverStyle: BookCoverStyle
     let updatedAt: Date
     let lastOpenedAt: Date?
@@ -32,6 +33,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
         isCurrentlyReading: Bool,
         readingProgress: Double?,
         isTrashed: Bool,
+        coverAsset: Asset? = nil,
         coverStyle: BookCoverStyle,
         updatedAt: Date? = nil,
         lastOpenedAt: Date? = nil,
@@ -48,6 +50,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
         self.isCurrentlyReading = isCurrentlyReading
         self.readingProgress = readingProgress
         self.isTrashed = isTrashed
+        self.coverAsset = coverAsset
         self.coverStyle = coverStyle
         self.updatedAt = updatedAt ?? dateAdded
         self.lastOpenedAt = lastOpenedAt
