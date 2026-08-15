@@ -10,10 +10,10 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 0 — New-Mac prerequisites and workspace baseline.
+- Current milestone: Step 2 — Build the visual library shell with sample data.
 - Implementation status: not started.
-- Xcode project: not created.
-- Git repository: not initialized.
+- Xcode project: created with app, unit-test, and UI-test targets.
+- Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
 
 ## Working protocol
@@ -607,8 +607,8 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 
 | Step | Milestone | Status | Acceptance notes |
 | ---: | --- | --- | --- |
-| 0 | New-Mac prerequisites and workspace baseline | Not started | |
-| 1 | Bootstrap native macOS project | Not started | |
+| 0 | New-Mac prerequisites and workspace baseline | Accepted | Xcode 26.6 selected from `/Volumes/galfrey`; Swift 6.3.3; external Derived Data configured; Git workspace confirmed. |
+| 1 | Bootstrap native macOS project | Accepted | Manual Command-R, menus/About, light/dark appearance, and Command-U checkpoint passed on 2026-08-14. |
 | 2 | Visual library shell with sample data | Not started | |
 | 3 | SQLite persistence with GRDB | Not started | |
 | 4 | Book management | Not started | |

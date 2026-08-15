@@ -59,6 +59,8 @@ These choices are the current baseline. Changing one requires a documented reaso
 
 ### Platform and UI
 
+- Product display name: iEvelyn.
+- Bundle identifier: `org.cysun.iEvelyn`.
 - Minimum platform: macOS 26.
 - Language: the current Swift 6 language mode supported by the selected Xcode release.
 - App lifecycle and UI: SwiftUI.
@@ -203,20 +205,17 @@ Migration rules:
 
 As of 2026-08-14:
 
-- `/Users/cysun/git/iEvelyn` exists and initially contains only project handoff documentation.
-- The iEvelyn Xcode project has not been created.
-- The folder is not yet a Git repository.
-- No implementation step has started.
-- The original computer does not have enough space for the full Xcode installation, so implementation is expected to continue on another Mac.
-- Command Line Tools alone are not sufficient for building and running the macOS application; the new Mac must install and initialize a full current Xcode release.
+- `/Users/cysun/git/iEvelyn` is a Git repository on `main`, tracking `origin/main`; Step 1 was accepted on 2026-08-14.
+- The native SwiftUI project, app target, Swift Testing target, and XCTest UI-test target exist, and the Step 1 manual checkpoint passed.
+- Xcode 26.6 is installed on `/Volumes/galfrey`, selected as the active developer directory, and provides Swift 6.3.3.
+- Xcode Derived Data is configured under `/Volumes/galfrey/Xcode/DerivedData` to keep build output on the external volume.
+- The app uses the product name iEvelyn, bundle identifier `org.cysun.iEvelyn`, macOS 26 deployment target, Swift 6 language mode with complete strict-concurrency checking, and App Sandbox with user-selected read/write file access.
 - The legacy source application remains in a separate `Evelyn.NET` folder and should be consulted only when migration work reaches Steps 14–15 or when a specific legacy-data question must be answered.
 
 ## Open decisions
 
 Resolve these at the named milestone or when the user chooses to decide sooner:
 
-- Final product display name and bundle identifier: Step 1.
-- Whether to initialize a Git repository and when to create the first commit: user decision; never commit automatically.
 - Exact metadata fields and schema constraints: Step 3.
 - Accepted Markdown extensions and raw-HTML behavior: Step 8.
 - Continuous scrolling only versus an additional paginated/column reading mode: Step 9.

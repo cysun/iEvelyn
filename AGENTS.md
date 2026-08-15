@@ -167,11 +167,12 @@ Prefer feature-local types over a large generic utilities layer. Do not introduc
 - Do not claim a build or test passed unless it was run in the current environment.
 - If verification cannot run because Xcode or another prerequisite is missing, report that plainly and do not substitute unsupported confidence.
 
-Once Step 1 creates the project, replace the placeholders below with commands verified against the actual project and scheme:
+Step 1 established the `iEvelyn` scheme and verified these commands with Xcode 26.6 on Apple silicon. The explicit Derived Data path keeps build output on the configured external volume:
 
 ```sh
-# Build command: record after discovering the actual .xcodeproj/.xcworkspace and scheme.
-# Unit/UI test command: record after discovering valid destinations and targets.
+xcodebuild -list -project iEvelyn.xcodeproj
+xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step1 build
+xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step1 test
 ```
 
 Discover schemes with `xcodebuild -list`; do not invent scheme names or destinations.

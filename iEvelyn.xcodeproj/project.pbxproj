@@ -1,0 +1,676 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXContainerItemProxy section */
+		93E0D52330302B5700869C04 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 93E0D50D30302B5600869C04 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 93E0D51430302B5600869C04;
+			remoteInfo = iEvelyn;
+		};
+		93E0D52D30302B5700869C04 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 93E0D50D30302B5600869C04 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 93E0D51430302B5600869C04;
+			remoteInfo = iEvelyn;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		93E0D51530302B5600869C04 /* iEvelyn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iEvelyn.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		93E0D52230302B5700869C04 /* iEvelynTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iEvelynTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		93E0D52C30302B5700869C04 /* iEvelynUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = iEvelynUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		93E0D54030302B5700869C04 /* Exceptions for "Domain" folder in "iEvelyn" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				.gitkeep,
+			);
+			target = 93E0D51430302B5600869C04 /* iEvelyn */;
+		};
+		93E0D54130302B5700869C04 /* Exceptions for "Persistence" folder in "iEvelyn" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				.gitkeep,
+			);
+			target = 93E0D51430302B5600869C04 /* iEvelyn */;
+		};
+		93E0D54230302B5700869C04 /* Exceptions for "Features" folder in "iEvelyn" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BookDetails/.gitkeep,
+				Editor/.gitkeep,
+				Reader/.gitkeep,
+			);
+			target = 93E0D51430302B5600869C04 /* iEvelyn */;
+		};
+		93E0D54330302B5700869C04 /* Exceptions for "Services" folder in "iEvelyn" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Assets/.gitkeep,
+				EPUB/.gitkeep,
+				Import/.gitkeep,
+				Rendering/.gitkeep,
+			);
+			target = 93E0D51430302B5600869C04 /* iEvelyn */;
+		};
+		93E0D54430302B5700869C04 /* Exceptions for "Shared" folder in "iEvelyn" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				.gitkeep,
+			);
+			target = 93E0D51430302B5600869C04 /* iEvelyn */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		93E0D51730302B5600869C04 /* App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = App;
+			sourceTree = "<group>";
+		};
+		93E0D51830302B5600869C04 /* Domain */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				93E0D54030302B5700869C04 /* Exceptions for "Domain" folder in "iEvelyn" target */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		93E0D51930302B5600869C04 /* Persistence */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				93E0D54130302B5700869C04 /* Exceptions for "Persistence" folder in "iEvelyn" target */,
+			);
+			path = Persistence;
+			sourceTree = "<group>";
+		};
+		93E0D51A30302B5600869C04 /* Features */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				93E0D54230302B5700869C04 /* Exceptions for "Features" folder in "iEvelyn" target */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		93E0D51B30302B5600869C04 /* Services */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				93E0D54330302B5700869C04 /* Exceptions for "Services" folder in "iEvelyn" target */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		93E0D51C30302B5600869C04 /* Shared */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				93E0D54430302B5700869C04 /* Exceptions for "Shared" folder in "iEvelyn" target */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		93E0D51D30302B5600869C04 /* Resources */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		93E0D52530302B5700869C04 /* iEvelynTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = iEvelynTests;
+			sourceTree = "<group>";
+		};
+		93E0D52F30302B5700869C04 /* iEvelynUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = iEvelynUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		93E0D51230302B5600869C04 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93E0D51F30302B5700869C04 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93E0D52930302B5700869C04 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		93E0D50C30302B5600869C04 = {
+			isa = PBXGroup;
+			children = (
+				93E0D51730302B5600869C04 /* App */,
+				93E0D51830302B5600869C04 /* Domain */,
+				93E0D51930302B5600869C04 /* Persistence */,
+				93E0D51A30302B5600869C04 /* Features */,
+				93E0D51B30302B5600869C04 /* Services */,
+				93E0D51C30302B5600869C04 /* Shared */,
+				93E0D51D30302B5600869C04 /* Resources */,
+				93E0D52530302B5700869C04 /* iEvelynTests */,
+				93E0D52F30302B5700869C04 /* iEvelynUITests */,
+				93E0D51630302B5600869C04 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		93E0D51630302B5600869C04 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				93E0D51530302B5600869C04 /* iEvelyn.app */,
+				93E0D52230302B5700869C04 /* iEvelynTests.xctest */,
+				93E0D52C30302B5700869C04 /* iEvelynUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		93E0D51430302B5600869C04 /* iEvelyn */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93E0D53630302B5700869C04 /* Build configuration list for PBXNativeTarget "iEvelyn" */;
+			buildPhases = (
+				93E0D51130302B5600869C04 /* Sources */,
+				93E0D51230302B5600869C04 /* Frameworks */,
+				93E0D51330302B5600869C04 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				93E0D51730302B5600869C04 /* App */,
+				93E0D51830302B5600869C04 /* Domain */,
+				93E0D51930302B5600869C04 /* Persistence */,
+				93E0D51A30302B5600869C04 /* Features */,
+				93E0D51B30302B5600869C04 /* Services */,
+				93E0D51C30302B5600869C04 /* Shared */,
+				93E0D51D30302B5600869C04 /* Resources */,
+			);
+			name = iEvelyn;
+			packageProductDependencies = (
+			);
+			productName = iEvelyn;
+			productReference = 93E0D51530302B5600869C04 /* iEvelyn.app */;
+			productType = "com.apple.product-type.application";
+		};
+		93E0D52130302B5700869C04 /* iEvelynTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93E0D53930302B5700869C04 /* Build configuration list for PBXNativeTarget "iEvelynTests" */;
+			buildPhases = (
+				93E0D51E30302B5700869C04 /* Sources */,
+				93E0D51F30302B5700869C04 /* Frameworks */,
+				93E0D52030302B5700869C04 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				93E0D52430302B5700869C04 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				93E0D52530302B5700869C04 /* iEvelynTests */,
+			);
+			name = iEvelynTests;
+			packageProductDependencies = (
+			);
+			productName = iEvelynTests;
+			productReference = 93E0D52230302B5700869C04 /* iEvelynTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		93E0D52B30302B5700869C04 /* iEvelynUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 93E0D53C30302B5700869C04 /* Build configuration list for PBXNativeTarget "iEvelynUITests" */;
+			buildPhases = (
+				93E0D52830302B5700869C04 /* Sources */,
+				93E0D52930302B5700869C04 /* Frameworks */,
+				93E0D52A30302B5700869C04 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				93E0D52E30302B5700869C04 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				93E0D52F30302B5700869C04 /* iEvelynUITests */,
+			);
+			name = iEvelynUITests;
+			packageProductDependencies = (
+			);
+			productName = iEvelynUITests;
+			productReference = 93E0D52C30302B5700869C04 /* iEvelynUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		93E0D50D30302B5600869C04 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					93E0D51430302B5600869C04 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					93E0D52130302B5700869C04 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 93E0D51430302B5600869C04;
+					};
+					93E0D52B30302B5700869C04 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 93E0D51430302B5600869C04;
+					};
+				};
+			};
+			buildConfigurationList = 93E0D51030302B5600869C04 /* Build configuration list for PBXProject "iEvelyn" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 93E0D50C30302B5600869C04;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 93E0D51630302B5600869C04 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				93E0D51430302B5600869C04 /* iEvelyn */,
+				93E0D52130302B5700869C04 /* iEvelynTests */,
+				93E0D52B30302B5700869C04 /* iEvelynUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		93E0D51330302B5600869C04 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93E0D52030302B5700869C04 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93E0D52A30302B5700869C04 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		93E0D51130302B5600869C04 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93E0D51E30302B5700869C04 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		93E0D52830302B5700869C04 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		93E0D52430302B5700869C04 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 93E0D51430302B5600869C04 /* iEvelyn */;
+			targetProxy = 93E0D52330302B5700869C04 /* PBXContainerItemProxy */;
+		};
+		93E0D52E30302B5700869C04 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 93E0D51430302B5600869C04 /* iEvelyn */;
+			targetProxy = 93E0D52D30302B5700869C04 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		93E0D53430302B5700869C04 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		93E0D53530302B5700869C04 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		93E0D53730302B5700869C04 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Resources/iEvelyn.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.cysun.iEvelyn;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		93E0D53830302B5700869C04 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Resources/iEvelyn.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readwrite;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.cysun.iEvelyn;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		93E0D53A30302B5700869C04 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.cysun.iEvelynTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iEvelyn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/iEvelyn";
+			};
+			name = Debug;
+		};
+		93E0D53B30302B5700869C04 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.cysun.iEvelynTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/iEvelyn.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/iEvelyn";
+			};
+			name = Release;
+		};
+		93E0D53D30302B5700869C04 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.cysun.iEvelynUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = iEvelyn;
+			};
+			name = Debug;
+		};
+		93E0D53E30302B5700869C04 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = org.cysun.iEvelynUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = iEvelyn;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		93E0D51030302B5600869C04 /* Build configuration list for PBXProject "iEvelyn" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				93E0D53430302B5700869C04 /* Debug */,
+				93E0D53530302B5700869C04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		93E0D53630302B5700869C04 /* Build configuration list for PBXNativeTarget "iEvelyn" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				93E0D53730302B5700869C04 /* Debug */,
+				93E0D53830302B5700869C04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		93E0D53930302B5700869C04 /* Build configuration list for PBXNativeTarget "iEvelynTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				93E0D53A30302B5700869C04 /* Debug */,
+				93E0D53B30302B5700869C04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		93E0D53C30302B5700869C04 /* Build configuration list for PBXNativeTarget "iEvelynUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				93E0D53D30302B5700869C04 /* Debug */,
+				93E0D53E30302B5700869C04 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 93E0D50D30302B5600869C04 /* Project object */;
+}
