@@ -1,9 +1,8 @@
 import Foundation
 
-/// A temporary, feature-local book model used by the Step 2 visual prototype.
-/// Step 3 replaces this seam with persisted domain values and UUID identities.
+/// A read-only library projection assembled from normalized persisted records.
 nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
-    typealias ID = String
+    typealias ID = UUID
 
     let id: ID
     let title: String
@@ -36,4 +35,10 @@ nonisolated enum BookCoverStyle: String, CaseIterable, Sendable {
     case plum
     case slate
     case sunset
+
+    static func derived(from id: UUID) -> Self {
+        let styles = allCases
+        let byte = Int(id.uuid.0)
+        return styles[byte % styles.count]
+    }
 }

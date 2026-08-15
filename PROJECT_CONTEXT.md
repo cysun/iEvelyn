@@ -76,6 +76,8 @@ These choices are the current baseline. Changing one requires a documented reaso
 - Live UI updates: GRDB observations where they improve responsiveness and multi-window consistency.
 - Enable foreign-key enforcement and use write-ahead logging when supported by the final configuration.
 
+GRDB 7.11.1 is integrated through Swift Package Manager. The project requires a compatible 7.x release starting at 7.11.1, while `Package.resolved` records the exact reviewed build. GRDB is MIT-licensed. Dependency updates should continue to be explicit and should rerun migrations, persistence tests, Debug/Release builds, and the UI smoke suite.
+
 SQLite is preferred over an opaque persistence layer because the library format should remain inspectable, migration behavior should be explicit, and full-text search and transactions are important features.
 
 ### Content model
@@ -111,9 +113,9 @@ Keeping both Markdown and HTML as independently editable database fields is expl
 - The native iEvelyn importer validates that bundle and imports into a temporary library before an atomic commit.
 - Legacy identifiers may appear in migration reports or mappings but do not become the new domain identity scheme.
 
-## Proposed domain model
+## Initial persisted domain model
 
-The final schema is designed and tested in Step 3. The initial model should cover these concepts:
+Step 3 finalized the initial normalized schema with these concepts:
 
 | Concept | Responsibility |
 | --- | --- |
@@ -128,6 +130,16 @@ The final schema is designed and tested in Step 3. The initial model should cove
 | `Bookmark` | Named or unnamed semantic reading anchor, optional note, timestamps |
 
 Use UUIDs for new domain identities. Store ordering explicitly. Use foreign keys and transactions for multi-record changes such as chapter reordering or permanent book deletion.
+
+Initial schema decisions:
+
+- Store UUIDs as lowercase 36-character text so database inspection and migration reports remain readable.
+- Store dates as integer milliseconds since the Unix epoch and decode them through one shared GRDB record policy.
+- Enforce nonempty titles/names, normalized unique author and tag names, unique ordered author/chapter positions, progress ranges, nonnegative asset sizes, and one cover-purpose asset per book.
+- Model a book's cover through its unique owned `Asset` whose purpose is `cover`, avoiding a circular book/asset foreign key.
+- Cascade permanent book deletion through owned joins, chapters, assets, progress, and bookmarks. Restrict deletion of authors or tags while linked to a book.
+- Set chapter references on assets, reading progress, and bookmarks to null when a chapter is deleted, preserving book-level ownership and anchor fallback. Triggers reject cross-book chapter references.
+- Keep `trashedAt` as the book soft-deletion boundary; Step 4 supplies the user workflow.
 
 ## Reading-location strategy
 
@@ -208,7 +220,9 @@ As of 2026-08-14:
 - `/Users/cysun/git/iEvelyn` is a Git repository on `main`, tracking `origin/main`; Step 1 was accepted on 2026-08-14.
 - The native SwiftUI project, app target, Swift Testing target, and XCTest UI-test target exist, and the Step 1 manual checkpoint passed.
 - Step 2 was accepted on 2026-08-14 and provides a `NavigationSplitView` library shell with isolated in-memory sample books, grid/list presentations, search, sorting, selection, and per-window transient state.
-- The Step 2 `LibraryBook` model and string sample identifiers are an explicit temporary seam that Step 3 will replace with persisted domain values and UUID identities.
+- Step 3 was accepted on 2026-08-14. It replaced the sample-data seam with UUID domain values, the normalized GRDB schema, ordered migrations, repository access, live observations, and database-backed library projections.
+- The production database resolves to `iEvelyn/Library.sqlite` under the app sandbox's Application Support directory and uses foreign keys plus WAL. Unit/integration tests use in-memory or temporary databases, and UI tests explicitly select an in-memory launch mode.
+- Sample seeding and library reset exist only in Debug builds. Release builds contain neither the commands nor the sample provider.
 - Xcode 26.6 is installed on `/Volumes/galfrey`, selected as the active developer directory, and provides Swift 6.3.3.
 - Xcode Derived Data is configured under `/Volumes/galfrey/Xcode/DerivedData` to keep build output on the external volume.
 - The app uses the product name iEvelyn, bundle identifier `org.cysun.iEvelyn`, macOS 26 deployment target, Swift 6 language mode with complete strict-concurrency checking, and App Sandbox with user-selected read/write file access.
@@ -218,7 +232,6 @@ As of 2026-08-14:
 
 Resolve these at the named milestone or when the user chooses to decide sooner:
 
-- Exact metadata fields and schema constraints: Step 3.
 - Accepted Markdown extensions and raw-HTML behavior: Step 8.
 - Continuous scrolling only versus an additional paginated/column reading mode: Step 9.
 - Notes attached to bookmarks in the initial release: Step 10.

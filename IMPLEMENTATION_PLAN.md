@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 3 — Add SQLite persistence with GRDB.
-- Implementation status: not started.
+- Current milestone: Step 4 — Book management.
+- Implementation status: not started; awaiting authorization.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -610,7 +610,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 0 | New-Mac prerequisites and workspace baseline | Accepted | Xcode 26.6 selected from `/Volumes/galfrey`; Swift 6.3.3; external Derived Data configured; Git workspace confirmed. |
 | 1 | Bootstrap native macOS project | Accepted | Manual Command-R, menus/About, light/dark appearance, and Command-U checkpoint passed on 2026-08-14. |
 | 2 | Visual library shell with sample data | Accepted | Debug build, seven unit tests, and three UI smoke tests passed; visual, navigation, search, appearance, and multi-window checkpoint accepted on 2026-08-14. |
-| 3 | SQLite persistence with GRDB | Not started | |
+| 3 | SQLite persistence with GRDB | Accepted | GRDB 7.11.1 resolved; Debug and Release builds, 18 unit/integration tests, and three UI smoke tests passed; persistence, multi-window observation, and Debug reset checkpoint accepted on 2026-08-14. |
 | 4 | Book management | Not started | |
 | 5 | Cover and asset storage | Not started | |
 | 6 | Chapter management | Not started | |

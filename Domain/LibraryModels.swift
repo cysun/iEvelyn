@@ -1,0 +1,246 @@
+import Foundation
+
+nonisolated struct Book: Codable, Identifiable, Equatable, Sendable {
+    let id: UUID
+    var title: String
+    var subtitle: String?
+    var summary: String
+    var languageCode: String
+    var publisher: String?
+    var publicationDate: Date?
+    var isFavorite: Bool
+    var trashedAt: Date?
+    let createdAt: Date
+    var updatedAt: Date
+    var lastOpenedAt: Date?
+
+    init(
+        id: UUID = UUID(),
+        title: String,
+        subtitle: String? = nil,
+        summary: String = "",
+        languageCode: String = "en",
+        publisher: String? = nil,
+        publicationDate: Date? = nil,
+        isFavorite: Bool = false,
+        trashedAt: Date? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now,
+        lastOpenedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.summary = summary
+        self.languageCode = languageCode
+        self.publisher = publisher
+        self.publicationDate = publicationDate
+        self.isFavorite = isFavorite
+        self.trashedAt = trashedAt
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.lastOpenedAt = lastOpenedAt
+    }
+}
+
+nonisolated struct Author: Codable, Identifiable, Equatable, Sendable {
+    let id: UUID
+    var displayName: String
+    var normalizedName: String
+    let createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        displayName: String,
+        normalizedName: String? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.normalizedName = normalizedName ?? LibraryNameNormalizer.normalize(displayName)
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+nonisolated struct BookAuthor: Codable, Equatable, Sendable {
+    let bookID: UUID
+    let authorID: UUID
+    var position: Int
+}
+
+nonisolated struct Chapter: Codable, Identifiable, Equatable, Sendable {
+    let id: UUID
+    let bookID: UUID
+    var title: String
+    var markdown: String
+    var position: Int
+    var renderRevision: Int
+    var sourceHash: String?
+    let createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        bookID: UUID,
+        title: String,
+        markdown: String = "",
+        position: Int,
+        renderRevision: Int = 0,
+        sourceHash: String? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now
+    ) {
+        self.id = id
+        self.bookID = bookID
+        self.title = title
+        self.markdown = markdown
+        self.position = position
+        self.renderRevision = renderRevision
+        self.sourceHash = sourceHash
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+nonisolated enum AssetPurpose: String, Codable, CaseIterable, Sendable {
+    case cover
+    case chapterImage
+    case attachment
+}
+
+nonisolated struct Asset: Codable, Identifiable, Equatable, Sendable {
+    let id: UUID
+    let bookID: UUID
+    var chapterID: UUID?
+    var purpose: AssetPurpose
+    var mediaType: String
+    var storageRelativePath: String
+    var checksum: String
+    var byteCount: Int64
+    var pixelWidth: Int?
+    var pixelHeight: Int?
+    let createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        bookID: UUID,
+        chapterID: UUID? = nil,
+        purpose: AssetPurpose,
+        mediaType: String,
+        storageRelativePath: String,
+        checksum: String,
+        byteCount: Int64,
+        pixelWidth: Int? = nil,
+        pixelHeight: Int? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now
+    ) {
+        self.id = id
+        self.bookID = bookID
+        self.chapterID = chapterID
+        self.purpose = purpose
+        self.mediaType = mediaType
+        self.storageRelativePath = storageRelativePath
+        self.checksum = checksum
+        self.byteCount = byteCount
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+nonisolated struct Tag: Codable, Identifiable, Equatable, Sendable {
+    let id: UUID
+    var name: String
+    var normalizedName: String
+    let createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        name: String,
+        normalizedName: String? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now
+    ) {
+        self.id = id
+        self.name = name
+        self.normalizedName = normalizedName ?? LibraryNameNormalizer.normalize(name)
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+nonisolated struct BookTag: Codable, Equatable, Sendable {
+    let bookID: UUID
+    let tagID: UUID
+}
+
+nonisolated struct ReadingProgress: Codable, Equatable, Sendable {
+    let bookID: UUID
+    var chapterID: UUID?
+    var stableBlockID: String?
+    var textQuote: String?
+    var contextBefore: String?
+    var contextAfter: String?
+    var fractionInChapter: Double?
+    var overallProgress: Double
+    var lastReadAt: Date
+}
+
+nonisolated struct Bookmark: Codable, Identifiable, Equatable, Sendable {
+    let id: UUID
+    let bookID: UUID
+    var chapterID: UUID?
+    var stableBlockID: String?
+    var textQuote: String?
+    var contextBefore: String?
+    var contextAfter: String?
+    var fractionInChapter: Double?
+    var label: String?
+    var note: String?
+    let createdAt: Date
+    var updatedAt: Date
+
+    init(
+        id: UUID = UUID(),
+        bookID: UUID,
+        chapterID: UUID? = nil,
+        stableBlockID: String? = nil,
+        textQuote: String? = nil,
+        contextBefore: String? = nil,
+        contextAfter: String? = nil,
+        fractionInChapter: Double? = nil,
+        label: String? = nil,
+        note: String? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now
+    ) {
+        self.id = id
+        self.bookID = bookID
+        self.chapterID = chapterID
+        self.stableBlockID = stableBlockID
+        self.textQuote = textQuote
+        self.contextBefore = contextBefore
+        self.contextAfter = contextAfter
+        self.fractionInChapter = fractionInChapter
+        self.label = label
+        self.note = note
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+}
+
+nonisolated enum LibraryNameNormalizer {
+    static func normalize(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
+            .lowercased(with: Locale(identifier: "en_US_POSIX"))
+    }
+}

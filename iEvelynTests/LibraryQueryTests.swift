@@ -10,20 +10,20 @@ struct LibraryQueryTests {
     func destinationsFilterBooks() {
         let books = fixtureBooks
 
-        #expect(ids(for: .allBooks, in: books) == ["active", "old"])
-        #expect(ids(for: .currentlyReading, in: books) == ["active"])
-        #expect(ids(for: .recentlyAdded, in: books) == ["active"])
-        #expect(ids(for: .favorites, in: books) == ["old"])
-        #expect(ids(for: .trash, in: books) == ["trashed"])
+        #expect(ids(for: .allBooks, in: books) == [FixtureID.active, FixtureID.old])
+        #expect(ids(for: .currentlyReading, in: books) == [FixtureID.active])
+        #expect(ids(for: .recentlyAdded, in: books) == [FixtureID.active])
+        #expect(ids(for: .favorites, in: books) == [FixtureID.old])
+        #expect(ids(for: .trash, in: books) == [FixtureID.trashed])
     }
 
     @Test("Search matches title, author, subtitle, and tags without case sensitivity")
     func searchMatchesVisibleMetadata() {
         let books = fixtureBooks
 
-        #expect(ids(searching: "  OCTAVIA  ", in: books) == ["active"])
-        #expect(ids(searching: "Ambiguous", in: books) == ["old"])
-        #expect(ids(searching: "classic", in: books) == ["old"])
+        #expect(ids(searching: "  OCTAVIA  ", in: books) == [FixtureID.active])
+        #expect(ids(searching: "Ambiguous", in: books) == [FixtureID.old])
+        #expect(ids(searching: "classic", in: books) == [FixtureID.old])
         #expect(ids(searching: "not present", in: books).isEmpty)
     }
 
@@ -31,35 +31,51 @@ struct LibraryQueryTests {
     func sortOrdersAreDeterministic() {
         let books = fixtureBooks
 
-        #expect(ids(sortedBy: .title, in: books) == ["old", "active"])
-        #expect(ids(sortedBy: .author, in: books) == ["active", "old"])
-        #expect(ids(sortedBy: .recentlyAdded, in: books) == ["active", "old"])
+        #expect(ids(sortedBy: .title, in: books) == [FixtureID.old, FixtureID.active])
+        #expect(ids(sortedBy: .author, in: books) == [FixtureID.active, FixtureID.old])
+        #expect(ids(sortedBy: .recentlyAdded, in: books) == [FixtureID.active, FixtureID.old])
     }
 
     @Test("Sample data is stable and internally valid")
     func sampleDataIsStableAndValid() {
-        let books = SampleLibrary.books(referenceDate: referenceDate)
+        let books = SampleLibrary.previewBooks(referenceDate: referenceDate)
 
         #expect(books.count == 8)
         #expect(Set(books.map(\.id)).count == books.count)
         #expect(books.allSatisfy { !$0.title.isEmpty && !$0.authors.isEmpty })
         #expect(books.allSatisfy { !$0.isTrashed })
 
-        let recentIDs = ids(for: .recentlyAdded, in: books)
-        #expect(recentIDs == ["kindred", "piranesi", "psalm-for-the-wild-built"])
+        let recentTitles = LibraryQuery(
+            destination: .recentlyAdded,
+            searchText: "",
+            sortOrder: .recentlyAdded,
+            referenceDate: referenceDate
+        )
+        .apply(to: books)
+        .map(\.title)
+        #expect(recentTitles == ["Kindred", "Piranesi", "A Psalm for the Wild-Built"])
     }
 
     @MainActor
     @Test("Window models keep transient selection independent")
     func windowModelsKeepSelectionIndependent() {
-        let books = SampleLibrary.books(referenceDate: referenceDate)
+        let books = SampleLibrary.previewBooks(referenceDate: referenceDate)
         guard let firstBook = books.first else {
             Issue.record("SampleLibrary should provide at least one book")
             return
         }
 
-        let firstWindow = LibraryViewModel(books: books, referenceDate: referenceDate)
-        let secondWindow = LibraryViewModel(books: books, referenceDate: referenceDate)
+        let repository = PreviewLibraryRepository(books: books)
+        let firstWindow = LibraryViewModel(
+            repository: repository,
+            initialBooks: books,
+            referenceDate: referenceDate
+        )
+        let secondWindow = LibraryViewModel(
+            repository: repository,
+            initialBooks: books,
+            referenceDate: referenceDate
+        )
 
         firstWindow.selectedBookID = firstBook.id
 
@@ -73,7 +89,7 @@ struct LibraryQueryTests {
     private var fixtureBooks: [LibraryBook] {
         [
             makeBook(
-                id: "active",
+                id: FixtureID.active,
                 title: "Kindred",
                 subtitle: nil,
                 author: "Octavia E. Butler",
@@ -84,7 +100,7 @@ struct LibraryQueryTests {
                 isTrashed: false
             ),
             makeBook(
-                id: "old",
+                id: FixtureID.old,
                 title: "An Ambiguous Utopia",
                 subtitle: "The Dispossessed",
                 author: "Ursula K. Le Guin",
@@ -95,7 +111,7 @@ struct LibraryQueryTests {
                 isTrashed: false
             ),
             makeBook(
-                id: "trashed",
+                id: FixtureID.trashed,
                 title: "Archived Draft",
                 subtitle: nil,
                 author: "A. Writer",
@@ -109,7 +125,7 @@ struct LibraryQueryTests {
     }
 
     private func makeBook(
-        id: String,
+        id: UUID,
         title: String,
         subtitle: String?,
         author: String,
@@ -173,4 +189,10 @@ struct LibraryQueryTests {
         .apply(to: books)
         .map(\.id)
     }
+}
+
+private nonisolated enum FixtureID {
+    static let active = UUID(uuid: (0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
+    static let old = UUID(uuid: (0x20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2))
+    static let trashed = UUID(uuid: (0x30, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3))
 }

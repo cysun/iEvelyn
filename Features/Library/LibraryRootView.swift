@@ -3,7 +3,11 @@ import SwiftUI
 struct LibraryRootView: View {
     @State private var model: LibraryViewModel
 
-    init(model: LibraryViewModel = LibraryViewModel()) {
+    init(repository: any LibraryRepository) {
+        _model = State(initialValue: LibraryViewModel(repository: repository))
+    }
+
+    init(model: LibraryViewModel) {
         _model = State(initialValue: model)
     }
 
@@ -25,15 +29,30 @@ struct LibraryRootView: View {
         .focusedSceneValue(\.libraryPresentation, $model.presentation)
         .focusedSceneValue(\.libraryDestination, $model.destination)
         .accessibilityIdentifier("library-root")
+        .task {
+            await model.observeLibrary()
+        }
     }
 }
 
+#if DEBUG
 #Preview {
-    LibraryRootView()
+    let books = SampleLibrary.previewBooks()
+    LibraryRootView(
+        model: LibraryViewModel(
+            repository: PreviewLibraryRepository(books: books),
+            initialBooks: books
+        )
+    )
         .frame(width: 1120, height: 700)
 }
 
 #Preview("Empty library") {
-    LibraryRootView(model: LibraryViewModel(books: []))
+    LibraryRootView(
+        model: LibraryViewModel(
+            repository: PreviewLibraryRepository(books: [])
+        )
+    )
         .frame(width: 900, height: 600)
 }
+#endif

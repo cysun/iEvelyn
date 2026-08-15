@@ -7,7 +7,7 @@ final class iEvelynUITests: XCTestCase {
 
     @MainActor
     func testRootViewAppears() throws {
-        let app = launchApplication()
+        let app = launchApplication(seedSampleLibrary: true)
 
         XCTAssertTrue(
             app.descendants(matching: .any)["library-sidebar"].waitForExistence(timeout: 10),
@@ -21,7 +21,7 @@ final class iEvelynUITests: XCTestCase {
 
     @MainActor
     func testSidebarNavigationAndEmptyState() throws {
-        let app = launchApplication()
+        let app = launchApplication(seedSampleLibrary: true)
 
         let favorites = app.descendants(matching: .any)["sidebar-favorites"]
         XCTAssertTrue(favorites.waitForExistence(timeout: 10))
@@ -43,7 +43,7 @@ final class iEvelynUITests: XCTestCase {
 
     @MainActor
     func testGridListSwitchingAndSearch() throws {
-        let app = launchApplication()
+        let app = launchApplication(seedSampleLibrary: true)
 
         let listButton = app.descendants(matching: .any)["library-view-list"]
         XCTAssertTrue(listButton.waitForExistence(timeout: 10))
@@ -63,7 +63,7 @@ final class iEvelynUITests: XCTestCase {
         searchField.typeText("Kindred")
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["book-kindred"].waitForExistence(timeout: 5)
+            app.buttons["Kindred, by Octavia E. Butler"].waitForExistence(timeout: 5)
         )
 
         searchField.typeKey("a", modifierFlags: .command)
@@ -80,9 +80,16 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchApplication() -> XCUIApplication {
+    private func launchApplication(seedSampleLibrary: Bool) -> XCUIApplication {
         let app = XCUIApplication()
-        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        app.launchArguments += [
+            "-ApplePersistenceIgnoreState",
+            "YES",
+            "--ui-testing"
+        ]
+        if seedSampleLibrary {
+            app.launchArguments.append("--seed-sample-library")
+        }
         app.launch()
         return app
     }

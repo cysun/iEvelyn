@@ -4,8 +4,12 @@ import Observation
 @MainActor
 @Observable
 final class LibraryViewModel {
-    let books: [LibraryBook]
+    private let repository: any LibraryRepository
     let referenceDate: Date
+    private(set) var books: [LibraryBook]
+    private(set) var isLoading: Bool
+    private(set) var errorMessage: String?
+    private var isObserving = false
 
     var destination: LibraryDestination = .allBooks {
         didSet { reconcileSelection() }
@@ -23,9 +27,15 @@ final class LibraryViewModel {
 
     var selectedBookID: LibraryBook.ID?
 
-    init(books: [LibraryBook]? = nil, referenceDate: Date = .now) {
+    init(
+        repository: any LibraryRepository,
+        initialBooks: [LibraryBook] = [],
+        referenceDate: Date = .now
+    ) {
+        self.repository = repository
         self.referenceDate = referenceDate
-        self.books = books ?? SampleLibrary.books(referenceDate: referenceDate)
+        books = initialBooks
+        isLoading = initialBooks.isEmpty
     }
 
     var visibleBooks: [LibraryBook] {
@@ -45,6 +55,26 @@ final class LibraryViewModel {
 
     func clearSearch() {
         searchText = ""
+    }
+
+    func observeLibrary() async {
+        guard !isObserving else { return }
+        isObserving = true
+        defer { isObserving = false }
+
+        do {
+            for try await observedBooks in repository.observeLibraryBooks() {
+                books = observedBooks
+                isLoading = false
+                errorMessage = nil
+                reconcileSelection()
+            }
+        } catch is CancellationError {
+            return
+        } catch {
+            isLoading = false
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func reconcileSelection() {

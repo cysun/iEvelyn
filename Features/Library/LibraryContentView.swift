@@ -8,7 +8,11 @@ struct LibraryContentView: View {
             header
             Divider()
 
-            if model.visibleBooks.isEmpty {
+            if model.isLoading {
+                loadingState
+            } else if let errorMessage = model.errorMessage {
+                errorState(message: errorMessage)
+            } else if model.visibleBooks.isEmpty {
                 emptyState
             } else {
                 switch model.presentation {
@@ -32,6 +36,27 @@ struct LibraryContentView: View {
                 presentationPicker
             }
         }
+    }
+
+    private var loadingState: some View {
+        ContentUnavailableView {
+            ProgressView()
+            Text("Loading Books")
+        } description: {
+            Text("Reading the local library…")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("library-books-loading")
+    }
+
+    private func errorState(message: String) -> some View {
+        ContentUnavailableView {
+            Label("Could Not Load Books", systemImage: "exclamationmark.triangle")
+        } description: {
+            Text(message)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityIdentifier("library-books-error")
     }
 
     private var header: some View {

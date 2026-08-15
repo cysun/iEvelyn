@@ -2,9 +2,11 @@ import SwiftUI
 
 @main
 struct iEvelynApp: App {
+    @State private var applicationModel = LibraryApplicationModel()
+
     var body: some Scene {
         WindowGroup {
-            LibraryRootView()
+            LibraryApplicationRootView(applicationModel: applicationModel)
         }
         .defaultSize(width: 1120, height: 700)
         .commands {
@@ -13,6 +15,10 @@ struct iEvelynApp: App {
             }
 
             LibraryCommands()
+
+#if DEBUG
+            DebugLibraryCommands(applicationModel: applicationModel)
+#endif
         }
 
         Window("About iEvelyn", id: SceneIdentifier.about) {
