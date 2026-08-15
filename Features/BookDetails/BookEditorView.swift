@@ -24,7 +24,6 @@ struct BookEditorView: View {
     let onSave: (BookMetadataInput) async throws -> Void
 
     @State private var metadata: BookMetadataInput
-    @State private var includesPublicationDate: Bool
     @State private var isSaving = false
     @State private var errorMessage: String?
 
@@ -37,7 +36,6 @@ struct BookEditorView: View {
         self.onCancel = onCancel
         self.onSave = onSave
         _metadata = State(initialValue: configuration.metadata)
-        _includesPublicationDate = State(initialValue: configuration.metadata.publicationDate != nil)
     }
 
     var body: some View {
@@ -89,27 +87,6 @@ struct BookEditorView: View {
                         .accessibilityIdentifier("book-editor-summary")
                 }
 
-                Section("Publication") {
-                    TextField("Language", text: $metadata.languageCode)
-                        .accessibilityIdentifier("book-editor-language")
-                    TextField("Publisher", text: $metadata.publisher)
-                        .accessibilityIdentifier("book-editor-publisher")
-
-                    Toggle("Publication Date", isOn: $includesPublicationDate)
-                        .accessibilityIdentifier("book-editor-publication-date-toggle")
-
-                    if includesPublicationDate {
-                        DatePicker(
-                            "Published",
-                            selection: Binding(
-                                get: { metadata.publicationDate ?? .now },
-                                set: { metadata.publicationDate = $0 }
-                            ),
-                            displayedComponents: .date
-                        )
-                    }
-                }
-
                 if let errorMessage {
                     Section {
                         Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
@@ -119,13 +96,6 @@ struct BookEditorView: View {
                 }
             }
             .formStyle(.grouped)
-            .onChange(of: includesPublicationDate) { _, includesDate in
-                if includesDate {
-                    metadata.publicationDate = metadata.publicationDate ?? .now
-                } else {
-                    metadata.publicationDate = nil
-                }
-            }
 
             Divider()
 
@@ -152,7 +122,7 @@ struct BookEditorView: View {
             }
             .padding()
         }
-        .frame(minWidth: 560, minHeight: 610)
+        .frame(minWidth: 560, minHeight: 500)
         .navigationTitle(configuration.title)
         .disabled(isSaving)
     }

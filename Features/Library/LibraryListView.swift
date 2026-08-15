@@ -2,43 +2,97 @@ import SwiftUI
 
 struct LibraryListView: View {
     let books: [LibraryBook]
-    @Binding var selectedBookID: LibraryBook.ID?
+    let onOpenBook: (LibraryBook) -> Void
+    let onBookAction: (LibraryBook, BookManagementAction) -> Void
 
     var body: some View {
-        Table(books, selection: $selectedBookID) {
-            TableColumn("Title") { book in
-                HStack(spacing: 10) {
-                    BookCoverArtwork(book: book, isSelected: selectedBookID == book.id)
-                        .frame(width: 32, height: 48)
+        VStack(spacing: 0) {
+            listHeader
+            Divider()
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(book.title)
-                            .fontWeight(.medium)
-                            .lineLimit(1)
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(books) { book in
+                        HStack(spacing: 8) {
+                            Button {
+                                onOpenBook(book)
+                            } label: {
+                                listRow(for: book)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(book.title), by \(book.authorLine)")
+                            .accessibilityHint("Open book")
+                            .accessibilityIdentifier("book-\(book.id)")
+                            .contextMenu {
+                                BookManagementCommands(book: book) { action in
+                                    onBookAction(book, action)
+                                }
+                            }
 
-                        if let subtitle = book.subtitle {
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
+                            BookManagementMenu(book: book) { action in
+                                onBookAction(book, action)
+                            }
                         }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 2)
+
+                        Divider()
+                            .padding(.leading, 14)
                     }
                 }
             }
-            .width(min: 220, ideal: 320)
+            .accessibilityIdentifier("library-list")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
 
-            TableColumn("Author") { book in
-                Text(book.authorLine)
+    private var listHeader: some View {
+        HStack(spacing: 8) {
+            Text("Title")
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("Author")
+                .frame(width: 190, alignment: .leading)
+            Text("Added")
+                .frame(width: 120, alignment: .leading)
+            Text("Progress")
+                .frame(width: 72, alignment: .leading)
+            Color.clear
+                .frame(width: 24, height: 1)
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .padding(.leading, 14)
+        .padding(.trailing, 14)
+        .padding(.vertical, 7)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityHidden(true)
+    }
+
+    private func listRow(for book: LibraryBook) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(book.title)
+                    .fontWeight(.medium)
                     .lineLimit(1)
-            }
-            .width(min: 150, ideal: 190)
 
-            TableColumn("Added") { book in
-                Text(book.dateAdded, format: .dateTime.month(.abbreviated).day().year())
+                if let subtitle = book.subtitle {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
-            .width(min: 100, ideal: 120)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
-            TableColumn("Progress") { book in
+            Text(book.authorLine)
+                .lineLimit(1)
+                .frame(width: 190, alignment: .leading)
+
+            Text(book.dateAdded, format: .dateTime.month(.abbreviated).day().year())
+                .frame(width: 120, alignment: .leading)
+
+            Group {
                 if let progress = book.clampedReadingProgress {
                     Text(progress, format: .percent.precision(.fractionLength(0)))
                 } else {
@@ -46,8 +100,8 @@ struct LibraryListView: View {
                         .accessibilityLabel("Not started")
                 }
             }
-            .width(72)
+            .frame(width: 72, alignment: .leading)
         }
-        .accessibilityIdentifier("library-list")
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     }
 }

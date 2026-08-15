@@ -3,6 +3,8 @@ import SwiftUI
 struct LibraryRootView: View {
     @State private var model: LibraryViewModel
     @State private var editorConfiguration: BookEditorConfiguration?
+    @State private var bookInfoPresentation: BookInfoPresentation?
+    @State private var readerPresentation: ReaderPresentation?
 
     init(repository: any LibraryRepository) {
         _model = State(initialValue: LibraryViewModel(repository: repository))
@@ -17,28 +19,24 @@ struct LibraryRootView: View {
 
         NavigationSplitView {
             LibrarySidebarView(selection: $model.destination)
-        } content: {
-            LibraryContentView(model: model) {
-                editorConfiguration = .adding()
-            }
         } detail: {
-            BookDetailView(
-                book: model.selectedBook,
-                isBusy: model.isPerformingOperation,
-                onEdit: { book in
+            LibraryContentView(
+                model: model,
+                onAddBook: {
+                    editorConfiguration = .adding()
+                },
+                onOpenBook: { book in
+                    if book.isTrashed {
+                        showBookInfo(book)
+                    } else {
+                        readerPresentation = ReaderPresentation(id: book.id, title: book.title)
+                    }
+                },
+                onShowBookInfo: { book in
+                    showBookInfo(book)
+                },
+                onEditBook: { book in
                     editorConfiguration = .editing(book)
-                },
-                onToggleFavorite: { book in
-                    Task { await model.toggleFavorite(for: book) }
-                },
-                onMoveToTrash: { book in
-                    Task { await model.moveToTrash(book) }
-                },
-                onRestore: { book in
-                    Task { await model.restore(book) }
-                },
-                onDeletePermanently: { book in
-                    Task { await model.permanentlyDelete(book) }
                 }
             )
         }
@@ -53,12 +51,6 @@ struct LibraryRootView: View {
         .task {
             await model.observeLibrary()
         }
-        .onChange(of: model.selectedBookID) { _, _ in
-            guard let book = model.selectedBook, !book.isTrashed else { return }
-            Task {
-                await model.markOpened(book)
-            }
-        }
         .sheet(item: $editorConfiguration) { configuration in
             BookEditorView(
                 configuration: configuration,
@@ -71,6 +63,64 @@ struct LibraryRootView: View {
                 }
             )
         }
+        .sheet(item: $bookInfoPresentation) { presentation in
+            NavigationStack {
+                BookDetailView(
+                    book: model.book(id: presentation.id),
+                    isBusy: model.isPerformingOperation,
+                    onEdit: { book in
+                        presentEditorAfterClosingBookInfo(for: book)
+                    },
+                    onToggleFavorite: { book in
+                        Task { await model.toggleFavorite(for: book) }
+                    },
+                    onMoveToTrash: { book in
+                        bookInfoPresentation = nil
+                        Task { await model.moveToTrash(book) }
+                    },
+                    onRestore: { book in
+                        bookInfoPresentation = nil
+                        Task { await model.restore(book) }
+                    },
+                    onDeletePermanently: { book in
+                        bookInfoPresentation = nil
+                        Task { await model.permanentlyDelete(book) }
+                    }
+                )
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") {
+                            bookInfoPresentation = nil
+                        }
+                        .keyboardShortcut(.cancelAction)
+                    }
+                }
+            }
+            .frame(minWidth: 580, idealWidth: 680, minHeight: 640, idealHeight: 760)
+        }
+        .sheet(item: $readerPresentation) { presentation in
+            VStack(spacing: 18) {
+                Image(systemName: "book.closed")
+                    .font(.system(size: 44))
+                    .foregroundStyle(.secondary)
+
+                Text("Reader Not Available Yet")
+                    .font(.title2.bold())
+
+                Text("The reading view for “\(presentation.title)” has not been implemented yet. Use the book's More menu for information and editing.")
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: 380)
+
+                Button("OK") {
+                    readerPresentation = nil
+                }
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("reader-unavailable-dismiss")
+            }
+            .padding(32)
+            .frame(minWidth: 460, minHeight: 260)
+        }
         .alert(item: $model.alert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -79,6 +129,27 @@ struct LibraryRootView: View {
             )
         }
     }
+
+    private func presentEditorAfterClosingBookInfo(for book: LibraryBook) {
+        bookInfoPresentation = nil
+        Task { @MainActor in
+            await Task.yield()
+            editorConfiguration = .editing(book)
+        }
+    }
+
+    private func showBookInfo(_ book: LibraryBook) {
+        bookInfoPresentation = BookInfoPresentation(id: book.id)
+    }
+}
+
+private struct BookInfoPresentation: Identifiable {
+    let id: LibraryBook.ID
+}
+
+private struct ReaderPresentation: Identifiable {
+    let id: LibraryBook.ID
+    let title: String
 }
 
 #if DEBUG

@@ -10,7 +10,7 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 4 — Book management, accepted on 2026-08-15.
+- Current milestone: Step 4A — Reader-first library navigation redesign, accepted on 2026-08-15.
 - Implementation status: accepted after the manual checkpoint; Step 5 has not started.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
@@ -220,7 +220,7 @@ Make the library useful for real book records before adding files or chapters.
 ### Deliverables
 
 - Create, view, edit, and validate book metadata.
-- Cover title, subtitle, ordered authors, summary, language, and relevant publication fields.
+- Cover title, subtitle, ordered authors, and summary without publisher, publication-date, or language fields.
 - Support favorite/unfavorite.
 - Support library sorting and filtering against real persisted data.
 - Implement soft deletion to Trash, restore, and explicit permanent deletion.
@@ -239,6 +239,39 @@ Make the library useful for real book records before adding files or chapters.
 - Favorite a book.
 - Move a book to Trash, restore it, then permanently delete a disposable book.
 - Quit/relaunch and verify all states persist.
+
+## Step 4A — Redesign library navigation around browsing and reading
+
+### Goal
+
+Make finding and opening a book the dominant main-window experience before adding more authoring features.
+
+### Deliverables
+
+- Use a two-column main window: the library sidebar plus a spacious grid/list browsing canvas.
+- Do not reserve a persistent main-window column for book metadata.
+- Make activation of a book the primary seam for opening the reader rather than selecting a management target.
+- Give each grid/list item its own compact, native More menu and contextual actions.
+- Keep cover artwork prominent in the grid while using a clean, text-led compact list without lossy miniature covers.
+- Present book information and metadata editing on demand without shrinking the library browser.
+- Preserve a clear primary activation seam for the dedicated reader planned in Step 9; do not implement reader or chapter behavior early.
+- Keep only title, subtitle, ordered authors, summary, and library timestamps in editable/displayed book metadata; remove language and publication fields with an ordered migration.
+- Keep grid/list switching, search, sorting, favorites, Trash, accessibility, and multi-window behavior intact.
+
+### Automated checks
+
+- UI tests verify that activating a book enters the reader seam, leaves the full browser visible while the reader is unavailable, and exposes management from that item's More menu.
+- Migration tests prove existing books and library timestamps survive removal of publication metadata.
+- Existing book-management and library-query suites continue to pass.
+
+### Manual checkpoint
+
+- Resize the window from compact to wide and confirm the grid uses the available browsing canvas.
+- Switch between grid and list and browse a representative large sample library.
+- Activate books from grid and list; confirm the temporary reader-unavailable message appears without changing Recently Opened.
+- Open Book Info and edit/favorite/Trash actions from each book's More menu, then dismiss back to the same library context.
+- Confirm Add/Edit and Book Info contain no language, publisher, or publication-date fields while Added and Updated remain visible.
+- Verify keyboard navigation, search, sidebar destinations, light/dark appearance, and multiple windows.
 
 ## Step 5 — Add cover and asset storage
 
@@ -612,6 +645,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 2 | Visual library shell with sample data | Accepted | Debug build, seven unit tests, and three UI smoke tests passed; visual, navigation, search, appearance, and multi-window checkpoint accepted on 2026-08-14. |
 | 3 | SQLite persistence with GRDB | Accepted | GRDB 7.11.1 resolved; Debug and Release builds, 18 unit/integration tests, and three UI smoke tests passed; persistence, multi-window observation, and Debug reset checkpoint accepted on 2026-08-14. |
 | 4 | Book management | Accepted | Debug and Release builds, 23 unit/integration tests, and four UI tests passed; manual checkpoint accepted on 2026-08-15. |
+| 4A | Reader-first library navigation redesign | Accepted | Debug and Release builds, 24 unit/integration tests, and five UI tests passed; reader-first grid/list design, streamlined metadata, and text-led list accepted on 2026-08-15. |
 | 5 | Cover and asset storage | Not started | |
 | 6 | Chapter management | Not started | |
 | 7 | Markdown chapter editor | Not started | |

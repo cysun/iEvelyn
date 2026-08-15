@@ -3,6 +3,11 @@ import SwiftUI
 struct LibraryContentView: View {
     @Bindable var model: LibraryViewModel
     let onAddBook: () -> Void
+    let onOpenBook: (LibraryBook) -> Void
+    let onShowBookInfo: (LibraryBook) -> Void
+    let onEditBook: (LibraryBook) -> Void
+
+    @State private var permanentDeletionCandidate: LibraryBook?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,12 +25,14 @@ struct LibraryContentView: View {
                 case .grid:
                     LibraryGridView(
                         books: model.visibleBooks,
-                        selectedBookID: $model.selectedBookID
+                        onOpenBook: onOpenBook,
+                        onBookAction: handleBookAction
                     )
                 case .list:
                     LibraryListView(
                         books: model.visibleBooks,
-                        selectedBookID: $model.selectedBookID
+                        onOpenBook: onOpenBook,
+                        onBookAction: handleBookAction
                     )
                 }
             }
@@ -42,6 +49,33 @@ struct LibraryContentView: View {
                 sortMenu
                 presentationPicker
             }
+        }
+        .confirmationDialog(
+            permanentDeletionTitle,
+            isPresented: Binding(
+                get: { permanentDeletionCandidate != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        permanentDeletionCandidate = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible,
+            presenting: permanentDeletionCandidate
+        ) { book in
+            Button("Delete Permanently", role: .destructive) {
+                permanentDeletionCandidate = nil
+                Task {
+                    await model.permanentlyDelete(book)
+                }
+            }
+            .accessibilityIdentifier("book-confirm-delete-permanently")
+
+            Button("Cancel", role: .cancel) {
+                permanentDeletionCandidate = nil
+            }
+        } message: { _ in
+            Text("This cannot be undone. All data owned by this book will be removed.")
         }
     }
 
@@ -149,6 +183,36 @@ struct LibraryContentView: View {
 
     private var hasSearchText: Bool {
         !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var permanentDeletionTitle: String {
+        guard let book = permanentDeletionCandidate else {
+            return "Delete book permanently?"
+        }
+        return "Delete “\(book.title)” permanently?"
+    }
+
+    private func handleBookAction(_ book: LibraryBook, _ action: BookManagementAction) {
+        switch action {
+        case .showInfo:
+            onShowBookInfo(book)
+        case .edit:
+            onEditBook(book)
+        case .toggleFavorite:
+            Task {
+                await model.toggleFavorite(for: book)
+            }
+        case .moveToTrash:
+            Task {
+                await model.moveToTrash(book)
+            }
+        case .restore:
+            Task {
+                await model.restore(book)
+            }
+        case .requestPermanentDeletion:
+            permanentDeletionCandidate = book
+        }
     }
 
     private var emptyStateTitle: String {

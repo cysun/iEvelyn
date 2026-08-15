@@ -39,7 +39,7 @@ The existing Evelyn.NET application is a source of legacy book data only. Its we
 
 ### Library
 
-The main window uses a native sidebar and content area. Expected library sections include All Books, Currently Reading, Recently Added, Favorites, Authors, Tags, and Trash. Books can be displayed as cover grids or compact lists, searched, filtered, and sorted. The interface must have thoughtful empty, loading, and error states and work well in light and dark appearances.
+The main window uses a native sidebar and a full browsing area rather than a persistent metadata column. Expected library sections include All Books, Currently Reading, Recently Added, Favorites, Authors, Tags, and Trash. Books can be displayed as cover grids or compact lists, searched, filtered, and sorted. The cover grid uses artwork for visual browsing; the compact list omits tiny cover thumbnails and prioritizes title, author, library date, and progress. Activating a book opens the reader; information and management actions belong to that book's compact More menu and on-demand sheets rather than a selection-dependent toolbar. The interface must have thoughtful empty, loading, and error states and work well in light and dark appearances.
 
 ### Book management and authoring
 
@@ -119,7 +119,7 @@ Step 3 finalized the initial normalized schema with these concepts:
 
 | Concept | Responsibility |
 | --- | --- |
-| `Book` | Title, subtitle, summary, language, publication metadata, favorite/trash state, timestamps, cover reference |
+| `Book` | Title, subtitle, summary, favorite/trash state, library timestamps, cover reference |
 | `Author` | Reusable normalized author identity and display name |
 | `BookAuthor` | Ordered many-to-many relationship between books and authors |
 | `Chapter` | Stable UUID, book ownership, title, canonical Markdown, order, timestamps, render revision/hash |
@@ -135,6 +135,7 @@ Initial schema decisions:
 
 - Store UUIDs as lowercase 36-character text so database inspection and migration reports remain readable.
 - Store dates as integer milliseconds since the Unix epoch and decode them through one shared GRDB record policy.
+- The v2 migration removes language, publisher, and publication-date columns. iEvelyn's online self-published serials retain Added and Updated as library metadata instead of publication metadata.
 - Enforce nonempty titles/names, normalized unique author and tag names, unique ordered author/chapter positions, progress ranges, nonnegative asset sizes, and one cover-purpose asset per book.
 - Model a book's cover through its unique owned `Asset` whose purpose is `cover`, avoiding a circular book/asset foreign key.
 - Cascade permanent book deletion through owned joins, chapters, assets, progress, and bookmarks. Restrict deletion of authors or tags while linked to a book.
@@ -219,10 +220,13 @@ As of 2026-08-15:
 
 - `/Users/cysun/git/iEvelyn` is a Git repository on `main`, tracking `origin/main`; Step 1 was accepted on 2026-08-14.
 - The native SwiftUI project, app target, Swift Testing target, and XCTest UI-test target exist, and the Step 1 manual checkpoint passed.
-- Step 2 was accepted on 2026-08-14 and provides a `NavigationSplitView` library shell with isolated in-memory sample books, grid/list presentations, search, sorting, selection, and per-window transient state.
+- Step 2 was accepted on 2026-08-14 and provides a `NavigationSplitView` library shell with isolated in-memory sample books, grid/list presentations, search, sorting, and per-window transient state.
 - Step 3 was accepted on 2026-08-14. It replaced the sample-data seam with UUID domain values, the normalized GRDB schema, ordered migrations, repository access, live observations, and database-backed library projections.
 - Step 4 was accepted on 2026-08-15. It adds native book creation, details, and metadata editing; ordered author persistence; validation; favorite and recently-opened state; persisted search and sorting; and the complete Trash, restore, and explicit permanent-delete workflow.
 - Step 4 reuses the normalized Step 3 schema without a new migration or dependency. Cover art remains generated library artwork until the Step 5 asset subsystem is authorized.
+- Step 4A was accepted on 2026-08-15. The reader-first navigation correction keeps the sidebar and gives the remaining main-window space to grid/list browsing. Book activation uses the future reader seam, while every item owns its More menu and book information/management sheets. Until Step 9 supplies the reader, activation presents an explicit unavailable message and does not update `lastOpenedAt`.
+- Step 4A also removes language, publisher, and publication-date metadata end to end through the ordered v2 migration. Added and Updated remain part of Book Info.
+- Step 4A keeps cover artwork in grid and detail contexts but omits it from the compact list, where the reduced images were not legible enough to aid browsing.
 - The production database resolves to `iEvelyn/Library.sqlite` under the app sandbox's Application Support directory and uses foreign keys plus WAL. Unit/integration tests use in-memory or temporary databases, and UI tests explicitly select an in-memory launch mode.
 - Sample seeding and library reset exist only in Debug builds. Release builds contain neither the commands nor the sample provider.
 - Xcode 26.6 is installed on `/Volumes/galfrey`, selected as the active developer directory, and provides Swift 6.3.3.
@@ -236,6 +240,7 @@ Resolve these at the named milestone or when the user chooses to decide sooner:
 
 - Accepted Markdown extensions and raw-HTML behavior: Step 8.
 - Continuous scrolling only versus an additional paginated/column reading mode: Step 9.
+- Required EPUB language and any export-only publication metadata must be supplied by exporter policy or at export time rather than restored as stored book fields: Step 12.
 - Notes attached to bookmarks in the initial release: Step 10.
 - Whether old bookmarks and reading progress are reliable enough to migrate: Step 14.
 - App icon, signing identity, distribution path, and notarization details: Step 16.

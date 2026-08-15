@@ -10,16 +10,12 @@ struct BookManagementTests {
     @Test("Create and update persist normalized metadata and ordered authors")
     func createAndUpdateMetadata() async throws {
         let repository = try makeRepository()
-        let publicationDate = Date(timeIntervalSince1970: 1_500_000_000)
         let bookID = try await repository.createBook(
             metadata: BookMetadataInput(
                 title: "  The Test Book  ",
                 subtitle: "  A Durable Subtitle ",
                 authors: [" First Author ", "Second Author"],
-                summary: "  A useful summary.  ",
-                languageCode: "en-US",
-                publisher: " Test Press ",
-                publicationDate: publicationDate
+                summary: "  A useful summary.  "
             ),
             at: createdAt
         )
@@ -28,12 +24,9 @@ struct BookManagementTests {
         #expect(inserted.title == "The Test Book")
         #expect(inserted.subtitle == "A Durable Subtitle")
         #expect(inserted.summary == "A useful summary.")
-        #expect(inserted.languageCode == "en-US")
-        #expect(inserted.publisher == "Test Press")
-        #expect(inserted.publicationDate == publicationDate)
         #expect(inserted.createdAt == createdAt)
         #expect(inserted.updatedAt == createdAt)
-        #expect(inserted.lastOpenedAt == createdAt)
+        #expect(inserted.lastOpenedAt == nil)
         #expect(try await repository.authors(forBookID: bookID).map(\.displayName) == [
             "First Author",
             "Second Author"
@@ -45,10 +38,7 @@ struct BookManagementTests {
             metadata: BookMetadataInput(
                 title: "Revised Book",
                 authors: ["Second Author", "Third Author"],
-                summary: "Revised summary",
-                languageCode: "fr",
-                publisher: "",
-                publicationDate: nil
+                summary: "Revised summary"
             ),
             at: updatedAt
         )
@@ -57,12 +47,9 @@ struct BookManagementTests {
         #expect(updated.title == "Revised Book")
         #expect(updated.subtitle == nil)
         #expect(updated.summary == "Revised summary")
-        #expect(updated.languageCode == "fr")
-        #expect(updated.publisher == nil)
-        #expect(updated.publicationDate == nil)
         #expect(updated.createdAt == createdAt)
         #expect(updated.updatedAt == updatedAt)
-        #expect(updated.lastOpenedAt == createdAt)
+        #expect(updated.lastOpenedAt == nil)
         #expect(try await repository.authors(forBookID: bookID).map(\.displayName) == [
             "Second Author",
             "Third Author"
@@ -81,13 +68,6 @@ struct BookManagementTests {
             try BookMetadataInput(
                 title: "Book",
                 authors: ["Élodie", "ELODIE"]
-            ).validated()
-        }
-        expectValidationError(.invalidLanguageCode) {
-            try BookMetadataInput(
-                title: "Book",
-                authors: ["Author"],
-                languageCode: "en US"
             ).validated()
         }
     }

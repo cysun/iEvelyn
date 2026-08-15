@@ -16,9 +16,6 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
     let readingProgress: Double?
     let isTrashed: Bool
     let coverStyle: BookCoverStyle
-    let languageCode: String
-    let publisher: String?
-    let publicationDate: Date?
     let updatedAt: Date
     let lastOpenedAt: Date?
     let trashedAt: Date?
@@ -36,9 +33,6 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
         readingProgress: Double?,
         isTrashed: Bool,
         coverStyle: BookCoverStyle,
-        languageCode: String = "en",
-        publisher: String? = nil,
-        publicationDate: Date? = nil,
         updatedAt: Date? = nil,
         lastOpenedAt: Date? = nil,
         trashedAt: Date? = nil
@@ -55,9 +49,6 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
         self.readingProgress = readingProgress
         self.isTrashed = isTrashed
         self.coverStyle = coverStyle
-        self.languageCode = languageCode
-        self.publisher = publisher
-        self.publicationDate = publicationDate
         self.updatedAt = updatedAt ?? dateAdded
         self.lastOpenedAt = lastOpenedAt
         self.trashedAt = trashedAt
@@ -76,10 +67,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
             title: title,
             subtitle: subtitle ?? "",
             authors: authors.isEmpty ? [""] : authors,
-            summary: summary,
-            languageCode: languageCode,
-            publisher: publisher ?? "",
-            publicationDate: publicationDate
+            summary: summary
         )
     }
 }

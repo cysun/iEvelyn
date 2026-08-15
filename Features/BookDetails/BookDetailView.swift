@@ -139,14 +139,8 @@ struct BookDetailView: View {
     }
 
     private func metadataSection(_ book: LibraryBook) -> some View {
-        GroupBox("Publication Details") {
+        GroupBox("Library Details") {
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 8) {
-                metadataRow("Language", value: book.languageCode)
-                metadataRow("Publisher", value: book.publisher ?? "Not provided")
-                metadataRow(
-                    "Published",
-                    value: book.publicationDate?.formatted(date: .abbreviated, time: .omitted) ?? "Not provided"
-                )
                 metadataRow("Added", value: book.dateAdded.formatted(date: .abbreviated, time: .shortened))
                 metadataRow("Updated", value: book.updatedAt.formatted(date: .abbreviated, time: .shortened))
                 metadataRow(

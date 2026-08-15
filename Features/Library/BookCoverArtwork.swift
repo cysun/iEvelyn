@@ -2,7 +2,6 @@ import SwiftUI
 
 struct BookCoverArtwork: View {
     let book: LibraryBook
-    var isSelected = false
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -35,11 +34,11 @@ struct BookCoverArtwork: View {
         .overlay {
             RoundedRectangle(cornerRadius: LibraryDesignTokens.coverCornerRadius)
                 .strokeBorder(
-                    isSelected ? Color.accentColor : Color.white.opacity(0.14),
-                    lineWidth: isSelected ? LibraryDesignTokens.selectionStrokeWidth : 1
+                    Color.white.opacity(0.14),
+                    lineWidth: 1
                 )
         }
-        .shadow(color: .black.opacity(isSelected ? 0.22 : 0.14), radius: isSelected ? 8 : 5, y: 3)
+        .shadow(color: .black.opacity(0.14), radius: 5, y: 3)
     }
 
     private var decorativePattern: some View {

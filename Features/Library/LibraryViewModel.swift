@@ -14,21 +14,13 @@ final class LibraryViewModel {
     private var isObserving = false
     private let now: @Sendable () -> Date
 
-    var destination: LibraryDestination = .allBooks {
-        didSet { reconcileSelection() }
-    }
+    var destination: LibraryDestination = .allBooks
 
     var presentation: LibraryPresentation = .grid
 
-    var sortOrder: LibrarySortOrder = .title {
-        didSet { reconcileSelection() }
-    }
+    var sortOrder: LibrarySortOrder = .title
 
-    var searchText = "" {
-        didSet { reconcileSelection() }
-    }
-
-    var selectedBookID: LibraryBook.ID?
+    var searchText = ""
 
     init(
         repository: any LibraryRepository,
@@ -53,9 +45,8 @@ final class LibraryViewModel {
         .apply(to: books)
     }
 
-    var selectedBook: LibraryBook? {
-        guard let selectedBookID else { return nil }
-        return books.first { $0.id == selectedBookID }
+    func book(id: LibraryBook.ID) -> LibraryBook? {
+        books.first { $0.id == id }
     }
 
     func clearSearch() {
@@ -73,7 +64,6 @@ final class LibraryViewModel {
         }
 
         destination = .allBooks
-        selectedBookID = bookID
         return bookID
     }
 
@@ -88,29 +78,20 @@ final class LibraryViewModel {
     }
 
     func moveToTrash(_ book: LibraryBook) async {
-        let succeeded = await performOperation(errorTitle: "Could Not Move Book to Trash") {
+        await performOperation(errorTitle: "Could Not Move Book to Trash") {
             try await repository.moveBookToTrash(id: book.id, at: now())
-        }
-        if succeeded {
-            selectedBookID = nil
         }
     }
 
     func restore(_ book: LibraryBook) async {
-        let succeeded = await performOperation(errorTitle: "Could Not Restore Book") {
+        await performOperation(errorTitle: "Could Not Restore Book") {
             try await repository.restoreBook(id: book.id, at: now())
-        }
-        if succeeded {
-            selectedBookID = nil
         }
     }
 
     func permanentlyDelete(_ book: LibraryBook) async {
-        let succeeded = await performOperation(errorTitle: "Could Not Delete Book") {
+        await performOperation(errorTitle: "Could Not Delete Book") {
             try await repository.deleteBookPermanently(id: book.id)
-        }
-        if succeeded {
-            selectedBookID = nil
         }
     }
 
@@ -140,20 +121,12 @@ final class LibraryViewModel {
                 books = observedBooks
                 isLoading = false
                 errorMessage = nil
-                reconcileSelection()
             }
         } catch is CancellationError {
             return
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
-        }
-    }
-
-    private func reconcileSelection() {
-        guard let selectedBookID else { return }
-        if !visibleBooks.contains(where: { $0.id == selectedBookID }) {
-            self.selectedBookID = nil
         }
     }
 

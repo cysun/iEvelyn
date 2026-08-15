@@ -53,9 +53,7 @@ nonisolated struct LibraryQuery: Sendable {
             book.title,
             book.subtitle,
             book.authorLine,
-            book.summary,
-            book.languageCode,
-            book.publisher
+            book.summary
         ]
             .compactMap { $0 } + book.tags
 

@@ -2,8 +2,24 @@ import GRDB
 
 nonisolated enum LibrarySchema {
     static let initialMigrationIdentifier = "v1_create_library_schema"
+    static let removePublicationMetadataMigrationIdentifier = "v2_remove_publication_metadata"
 
     static var migrator: DatabaseMigrator {
+        var migrator = versionOneMigrator
+        migrator.registerMigration(
+            removePublicationMetadataMigrationIdentifier,
+            foreignKeyChecks: .immediate
+        ) { database in
+            for column in ["languageCode", "publisher", "publicationDate"] {
+                try database.alter(table: "books") { table in
+                    table.drop(column: column)
+                }
+            }
+        }
+        return migrator
+    }
+
+    static var versionOneMigrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         migrator.registerMigration(initialMigrationIdentifier, foreignKeyChecks: .immediate) { database in
             try database.execute(sql: initialSchemaSQL)

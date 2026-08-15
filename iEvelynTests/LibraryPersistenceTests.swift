@@ -25,7 +25,10 @@ struct LibraryPersistenceTests {
         #expect(diagnostics.location == .inMemory)
         #expect(diagnostics.foreignKeysEnabled)
         #expect(diagnostics.journalMode == "memory")
-        #expect(diagnostics.appliedMigrations == [LibrarySchema.initialMigrationIdentifier])
+        #expect(diagnostics.appliedMigrations == [
+            LibrarySchema.initialMigrationIdentifier,
+            LibrarySchema.removePublicationMetadataMigrationIdentifier
+        ])
         #expect(tables == [
             "assets",
             "authors",
@@ -36,6 +39,65 @@ struct LibraryPersistenceTests {
             "chapters",
             "readingProgress",
             "tags"
+        ])
+    }
+
+    @Test("Publication metadata migration preserves books and library timestamps")
+    func publicationMetadataMigrationPreservesBooksAndTimestamps() throws {
+        var configuration = Configuration()
+        configuration.foreignKeysEnabled = true
+        let queue = try DatabaseQueue(configuration: configuration)
+        try LibrarySchema.versionOneMigrator.migrate(queue)
+
+        let bookID = UUID()
+        let createdMilliseconds: Int64 = 1_900_000_000_000
+        let updatedMilliseconds: Int64 = 1_900_000_060_000
+        try queue.write { database in
+            try database.execute(
+                sql: """
+                    INSERT INTO books (
+                        id, title, subtitle, summary, languageCode, publisher,
+                        publicationDate, isFavorite, createdAt, updatedAt
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                arguments: [
+                    bookID.databaseString,
+                    "Migrated Serial",
+                    "Legacy Subtitle",
+                    "Preserved summary",
+                    "en-US",
+                    "Legacy Press",
+                    1_500_000_000_000 as Int64,
+                    true,
+                    createdMilliseconds,
+                    updatedMilliseconds
+                ]
+            )
+        }
+
+        try LibrarySchema.migrator.migrate(queue)
+
+        let (columns, book, migrations) = try queue.read { database in
+            (
+                try database.columns(in: "books").map(\.name),
+                try Book.fetchOne(database, key: bookID.databaseString),
+                try LibrarySchema.migrator.appliedMigrations(database)
+            )
+        }
+        let migratedBook = try #require(book)
+
+        #expect(!columns.contains("languageCode"))
+        #expect(!columns.contains("publisher"))
+        #expect(!columns.contains("publicationDate"))
+        #expect(migratedBook.title == "Migrated Serial")
+        #expect(migratedBook.subtitle == "Legacy Subtitle")
+        #expect(migratedBook.summary == "Preserved summary")
+        #expect(migratedBook.isFavorite)
+        #expect(migratedBook.createdAt == Date(timeIntervalSince1970: 1_900_000_000))
+        #expect(migratedBook.updatedAt == Date(timeIntervalSince1970: 1_900_000_060))
+        #expect(migrations == [
+            LibrarySchema.initialMigrationIdentifier,
+            LibrarySchema.removePublicationMetadataMigrationIdentifier
         ])
     }
 

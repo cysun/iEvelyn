@@ -104,14 +104,9 @@ struct LibraryQueryTests {
     }
 
     @MainActor
-    @Test("Window models keep transient selection independent")
-    func windowModelsKeepSelectionIndependent() {
+    @Test("Window models keep transient browsing state independent")
+    func windowModelsKeepBrowsingStateIndependent() {
         let books = SampleLibrary.previewBooks(referenceDate: referenceDate)
-        guard let firstBook = books.first else {
-            Issue.record("SampleLibrary should provide at least one book")
-            return
-        }
-
         let repository = PreviewLibraryRepository(books: books)
         let firstWindow = LibraryViewModel(
             repository: repository,
@@ -124,13 +119,13 @@ struct LibraryQueryTests {
             referenceDate: referenceDate
         )
 
-        firstWindow.selectedBookID = firstBook.id
+        firstWindow.presentation = .list
+        firstWindow.searchText = "Kindred"
 
-        #expect(firstWindow.selectedBookID == firstBook.id)
-        #expect(secondWindow.selectedBookID == nil)
-
-        firstWindow.destination = .trash
-        #expect(firstWindow.selectedBookID == nil)
+        #expect(firstWindow.presentation == .list)
+        #expect(firstWindow.searchText == "Kindred")
+        #expect(secondWindow.presentation == .grid)
+        #expect(secondWindow.searchText.isEmpty)
     }
 
     private var fixtureBooks: [LibraryBook] {

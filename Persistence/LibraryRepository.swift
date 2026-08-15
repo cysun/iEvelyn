@@ -108,12 +108,9 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             title: metadata.title,
             subtitle: metadata.subtitle,
             summary: metadata.summary,
-            languageCode: metadata.languageCode,
-            publisher: metadata.publisher,
-            publicationDate: metadata.publicationDate,
             createdAt: date,
             updatedAt: date,
-            lastOpenedAt: date
+            lastOpenedAt: nil
         )
 
         try await database.write { database in
@@ -143,9 +140,6 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             book.title = metadata.title
             book.subtitle = metadata.subtitle
             book.summary = metadata.summary
-            book.languageCode = metadata.languageCode
-            book.publisher = metadata.publisher
-            book.publicationDate = metadata.publicationDate
             book.updatedAt = date
             try book.update(database)
 
@@ -392,9 +386,6 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 readingProgress: progress,
                 isTrashed: book.trashedAt != nil,
                 coverStyle: .derived(from: book.id),
-                languageCode: book.languageCode,
-                publisher: book.publisher,
-                publicationDate: book.publicationDate,
                 updatedAt: book.updatedAt,
                 lastOpenedAt: book.lastOpenedAt,
                 trashedAt: book.trashedAt
