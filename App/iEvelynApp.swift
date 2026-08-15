@@ -6,11 +6,13 @@ struct iEvelynApp: App {
         WindowGroup {
             LibraryRootView()
         }
-        .defaultSize(width: 900, height: 600)
+        .defaultSize(width: 1120, height: 700)
         .commands {
             CommandGroup(replacing: .appInfo) {
                 AboutCommandButton()
             }
+
+            LibraryCommands()
         }
 
         Window("About iEvelyn", id: SceneIdentifier.about) {

@@ -1,27 +1,39 @@
 import SwiftUI
 
 struct LibraryRootView: View {
+    @State private var model: LibraryViewModel
+
+    init(model: LibraryViewModel = LibraryViewModel()) {
+        _model = State(initialValue: model)
+    }
+
     var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "books.vertical")
-                .font(.system(size: 56))
-                .foregroundStyle(.secondary)
-                .accessibilityHidden(true)
+        @Bindable var model = model
 
-            Text("Welcome to iEvelyn")
-                .font(.largeTitle.bold())
-                .accessibilityIdentifier("library-root-title")
-
-            Text("Your personal ebook library will appear here.")
-                .font(.title3)
-                .foregroundStyle(.secondary)
+        NavigationSplitView {
+            LibrarySidebarView(selection: $model.destination)
+        } content: {
+            LibraryContentView(model: model)
+        } detail: {
+            LibraryBookDetailPlaceholder(book: model.selectedBook)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .searchable(
+            text: $model.searchText,
+            placement: .toolbar,
+            prompt: "Search Library"
+        )
+        .focusedSceneValue(\.libraryPresentation, $model.presentation)
+        .focusedSceneValue(\.libraryDestination, $model.destination)
         .accessibilityIdentifier("library-root")
     }
 }
 
 #Preview {
     LibraryRootView()
+        .frame(width: 1120, height: 700)
+}
+
+#Preview("Empty library") {
+    LibraryRootView(model: LibraryViewModel(books: []))
         .frame(width: 900, height: 600)
 }

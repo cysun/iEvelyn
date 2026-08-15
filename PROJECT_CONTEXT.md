@@ -207,6 +207,8 @@ As of 2026-08-14:
 
 - `/Users/cysun/git/iEvelyn` is a Git repository on `main`, tracking `origin/main`; Step 1 was accepted on 2026-08-14.
 - The native SwiftUI project, app target, Swift Testing target, and XCTest UI-test target exist, and the Step 1 manual checkpoint passed.
+- Step 2 was accepted on 2026-08-14 and provides a `NavigationSplitView` library shell with isolated in-memory sample books, grid/list presentations, search, sorting, selection, and per-window transient state.
+- The Step 2 `LibraryBook` model and string sample identifiers are an explicit temporary seam that Step 3 will replace with persisted domain values and UUID identities.
 - Xcode 26.6 is installed on `/Volumes/galfrey`, selected as the active developer directory, and provides Swift 6.3.3.
 - Xcode Derived Data is configured under `/Volumes/galfrey/Xcode/DerivedData` to keep build output on the external volume.
 - The app uses the product name iEvelyn, bundle identifier `org.cysun.iEvelyn`, macOS 26 deployment target, Swift 6 language mode with complete strict-concurrency checking, and App Sandbox with user-selected read/write file access.
