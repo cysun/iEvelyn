@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LibraryContentView: View {
     @Bindable var model: LibraryViewModel
+    let onAddBook: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,6 +33,12 @@ struct LibraryContentView: View {
         .navigationTitle(model.destination.title)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
+                Button("Add Book", systemImage: "plus") {
+                    onAddBook()
+                }
+                .help("Add a book")
+                .accessibilityIdentifier("library-add-book")
+
                 sortMenu
                 presentationPicker
             }
@@ -54,6 +61,12 @@ struct LibraryContentView: View {
             Label("Could Not Load Books", systemImage: "exclamationmark.triangle")
         } description: {
             Text(message)
+        } actions: {
+            Button("Try Again") {
+                Task {
+                    await model.observeLibrary()
+                }
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("library-books-error")
@@ -90,6 +103,10 @@ struct LibraryContentView: View {
                     model.clearSearch()
                 }
                 .keyboardShortcut(.cancelAction)
+            } else if model.destination != .trash {
+                Button("Add Book") {
+                    onAddBook()
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

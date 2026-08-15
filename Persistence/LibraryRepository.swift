@@ -3,16 +3,62 @@ import GRDB
 
 nonisolated protocol LibraryRepository: Sendable {
     func observeLibraryBooks() -> AsyncThrowingStream<[LibraryBook], Error>
+    func createBook(metadata: BookMetadataInput, at date: Date) async throws -> UUID
+    func updateBook(id: UUID, metadata: BookMetadataInput, at date: Date) async throws
+    func setFavorite(bookID: UUID, isFavorite: Bool, at date: Date) async throws
+    func moveBookToTrash(id: UUID, at date: Date) async throws
+    func restoreBook(id: UUID, at date: Date) async throws
+    func markBookOpened(id: UUID, at date: Date) async throws
+    func deleteBookPermanently(id: UUID) async throws
 }
 
 nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
     case chapterOrderDoesNotMatchBook
+    case bookNotFound
+    case permanentDeleteRequiresTrash
+    case readOnlyRepository
 
     var errorDescription: String? {
         switch self {
         case .chapterOrderDoesNotMatchBook:
             "The chapter order must contain every chapter in the book exactly once."
+        case .bookNotFound:
+            "The selected book no longer exists."
+        case .permanentDeleteRequiresTrash:
+            "Move the book to Trash before deleting it permanently."
+        case .readOnlyRepository:
+            "This library is read-only."
         }
+    }
+}
+
+extension LibraryRepository {
+    func createBook(metadata: BookMetadataInput, at date: Date) async throws -> UUID {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func updateBook(id: UUID, metadata: BookMetadataInput, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func setFavorite(bookID: UUID, isFavorite: Bool, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func moveBookToTrash(id: UUID, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func restoreBook(id: UUID, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func markBookOpened(id: UUID, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func deleteBookPermanently(id: UUID) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
     }
 }
 
@@ -56,6 +102,113 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         try await database.read(Self.fetchLibraryBooks)
     }
 
+    func createBook(metadata: BookMetadataInput, at date: Date = .now) async throws -> UUID {
+        let metadata = try metadata.validated()
+        let book = Book(
+            title: metadata.title,
+            subtitle: metadata.subtitle,
+            summary: metadata.summary,
+            languageCode: metadata.languageCode,
+            publisher: metadata.publisher,
+            publicationDate: metadata.publicationDate,
+            createdAt: date,
+            updatedAt: date,
+            lastOpenedAt: date
+        )
+
+        try await database.write { database in
+            try book.insert(database)
+            try Self.replaceAuthors(
+                forBookID: book.id,
+                displayNames: metadata.authors,
+                at: date,
+                database: database
+            )
+        }
+        return book.id
+    }
+
+    func updateBook(
+        id: UUID,
+        metadata: BookMetadataInput,
+        at date: Date = .now
+    ) async throws {
+        let metadata = try metadata.validated()
+
+        try await database.write { database in
+            guard var book = try Book.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+
+            book.title = metadata.title
+            book.subtitle = metadata.subtitle
+            book.summary = metadata.summary
+            book.languageCode = metadata.languageCode
+            book.publisher = metadata.publisher
+            book.publicationDate = metadata.publicationDate
+            book.updatedAt = date
+            try book.update(database)
+
+            try Self.replaceAuthors(
+                forBookID: id,
+                displayNames: metadata.authors,
+                at: date,
+                database: database
+            )
+        }
+    }
+
+    func setFavorite(
+        bookID: UUID,
+        isFavorite: Bool,
+        at date: Date = .now
+    ) async throws {
+        try await database.write { database in
+            guard var book = try Book.fetchOne(database, key: bookID.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+            guard book.isFavorite != isFavorite else { return }
+            book.isFavorite = isFavorite
+            book.updatedAt = date
+            try book.update(database)
+        }
+    }
+
+    func moveBookToTrash(id: UUID, at date: Date = .now) async throws {
+        try await database.write { database in
+            guard var book = try Book.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+            guard book.trashedAt == nil else { return }
+            book.trashedAt = date
+            book.updatedAt = date
+            try book.update(database)
+        }
+    }
+
+    func restoreBook(id: UUID, at date: Date = .now) async throws {
+        try await database.write { database in
+            guard var book = try Book.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+            guard book.trashedAt != nil else { return }
+            book.trashedAt = nil
+            book.updatedAt = date
+            try book.update(database)
+        }
+    }
+
+    func markBookOpened(id: UUID, at date: Date = .now) async throws {
+        try await database.write { database in
+            guard var book = try Book.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+            guard book.trashedAt == nil, book.lastOpenedAt != date else { return }
+            book.lastOpenedAt = date
+            try book.update(database)
+        }
+    }
+
     func insertBook(_ book: Book) async throws {
         try await database.write { database in
             try book.insert(database)
@@ -76,7 +229,13 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
     func deleteBookPermanently(id: UUID) async throws {
         try await database.write { database in
-            _ = try Book.deleteOne(database, key: id.databaseString)
+            guard let book = try Book.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+            guard book.trashedAt != nil else {
+                throw LibraryRepositoryError.permanentDeleteRequiresTrash
+            }
+            _ = try book.delete(database)
         }
     }
 
@@ -232,8 +391,47 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 isCurrentlyReading: progress != nil,
                 readingProgress: progress,
                 isTrashed: book.trashedAt != nil,
-                coverStyle: .derived(from: book.id)
+                coverStyle: .derived(from: book.id),
+                languageCode: book.languageCode,
+                publisher: book.publisher,
+                publicationDate: book.publicationDate,
+                updatedAt: book.updatedAt,
+                lastOpenedAt: book.lastOpenedAt,
+                trashedAt: book.trashedAt
             )
+        }
+    }
+
+    private static func replaceAuthors(
+        forBookID bookID: UUID,
+        displayNames: [String],
+        at date: Date,
+        database: Database
+    ) throws {
+        _ = try BookAuthor
+            .filter(Column("bookID") == bookID.databaseString)
+            .deleteAll(database)
+
+        for (position, displayName) in displayNames.enumerated() {
+            let normalizedName = LibraryNameNormalizer.normalize(displayName)
+            let author: Author
+            if let existing = try Author
+                .filter(Column("normalizedName") == normalizedName)
+                .fetchOne(database) {
+                author = existing
+            } else {
+                let newAuthor = Author(
+                    displayName: displayName,
+                    normalizedName: normalizedName,
+                    createdAt: date,
+                    updatedAt: date
+                )
+                try newAuthor.insert(database)
+                author = newAuthor
+            }
+
+            try BookAuthor(bookID: bookID, authorID: author.id, position: position)
+                .insert(database)
         }
     }
 }

@@ -43,6 +43,129 @@ nonisolated struct Book: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
+nonisolated struct BookMetadataInput: Equatable, Sendable {
+    var title: String
+    var subtitle: String
+    var authors: [String]
+    var summary: String
+    var languageCode: String
+    var publisher: String
+    var publicationDate: Date?
+
+    static let empty = BookMetadataInput(
+        title: "",
+        subtitle: "",
+        authors: [""],
+        summary: "",
+        languageCode: "en",
+        publisher: "",
+        publicationDate: nil
+    )
+
+    init(
+        title: String,
+        subtitle: String = "",
+        authors: [String],
+        summary: String = "",
+        languageCode: String = "en",
+        publisher: String = "",
+        publicationDate: Date? = nil
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.authors = authors
+        self.summary = summary
+        self.languageCode = languageCode
+        self.publisher = publisher
+        self.publicationDate = publicationDate
+    }
+
+    func validated() throws -> ValidatedBookMetadata {
+        let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else {
+            throw BookMetadataValidationError.titleRequired
+        }
+
+        let authors = authors.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard !authors.isEmpty, authors.allSatisfy({ !$0.isEmpty }) else {
+            throw BookMetadataValidationError.authorRequired
+        }
+
+        var normalizedAuthors = Set<String>()
+        for author in authors {
+            let normalizedName = LibraryNameNormalizer.normalize(author)
+            guard normalizedAuthors.insert(normalizedName).inserted else {
+                throw BookMetadataValidationError.duplicateAuthor(author)
+            }
+        }
+
+        let languageCode = languageCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Self.isValidLanguageCode(languageCode) else {
+            throw BookMetadataValidationError.invalidLanguageCode
+        }
+
+        return ValidatedBookMetadata(
+            title: title,
+            subtitle: Self.optionalTrimmed(subtitle),
+            authors: authors,
+            summary: summary.trimmingCharacters(in: .whitespacesAndNewlines),
+            languageCode: languageCode,
+            publisher: Self.optionalTrimmed(publisher),
+            publicationDate: publicationDate
+        )
+    }
+
+    private static func optionalTrimmed(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func isValidLanguageCode(_ value: String) -> Bool {
+        guard (2...15).contains(value.count) else { return false }
+
+        let segments = value.split(separator: "-", omittingEmptySubsequences: false)
+        guard let first = segments.first,
+              (2...8).contains(first.count),
+              first.allSatisfy(\.isASCIIEnglishLetter) else {
+            return false
+        }
+
+        return segments.dropFirst().allSatisfy { segment in
+            (1...8).contains(segment.count) && segment.allSatisfy(\.isASCIIEnglishLetterOrNumber)
+        }
+    }
+}
+
+nonisolated struct ValidatedBookMetadata: Equatable, Sendable {
+    let title: String
+    let subtitle: String?
+    let authors: [String]
+    let summary: String
+    let languageCode: String
+    let publisher: String?
+    let publicationDate: Date?
+}
+
+nonisolated enum BookMetadataValidationError: LocalizedError, Equatable {
+    case titleRequired
+    case authorRequired
+    case duplicateAuthor(String)
+    case invalidLanguageCode
+
+    var errorDescription: String? {
+        switch self {
+        case .titleRequired:
+            "Enter a title."
+        case .authorRequired:
+            "Enter at least one author, and remove any empty author rows."
+        case .duplicateAuthor(let name):
+            "Each author may appear only once. “\(name)” is duplicated."
+        case .invalidLanguageCode:
+            "Enter a language code such as en, en-US, or zh-Hant."
+        }
+    }
+}
+
 nonisolated struct Author: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     var displayName: String
@@ -242,5 +365,19 @@ nonisolated enum LibraryNameNormalizer {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "en_US_POSIX"))
             .lowercased(with: Locale(identifier: "en_US_POSIX"))
+    }
+}
+
+private extension Character {
+    nonisolated var isASCIIEnglishLetter: Bool {
+        unicodeScalars.count == 1 && unicodeScalars.allSatisfy { scalar in
+            (65...90).contains(scalar.value) || (97...122).contains(scalar.value)
+        }
+    }
+
+    nonisolated var isASCIIEnglishLetterOrNumber: Bool {
+        isASCIIEnglishLetter || unicodeScalars.allSatisfy { scalar in
+            unicodeScalars.count == 1 && (48...57).contains(scalar.value)
+        }
     }
 }

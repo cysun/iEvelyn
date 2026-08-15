@@ -36,6 +36,53 @@ struct LibraryQueryTests {
         #expect(ids(sortedBy: .recentlyAdded, in: books) == [FixtureID.active, FixtureID.old])
     }
 
+    @Test("Recently opened sorting puts never-opened books last")
+    func recentlyOpenedSortUsesPersistedTimestamps() {
+        let books = [
+            makeBook(
+                id: FixtureID.active,
+                title: "Opened Earlier",
+                subtitle: nil,
+                author: "A. Author",
+                tags: [],
+                daysBefore: 5,
+                isFavorite: false,
+                isCurrentlyReading: false,
+                isTrashed: false,
+                lastOpenedDaysBefore: 3
+            ),
+            makeBook(
+                id: FixtureID.old,
+                title: "Opened Latest",
+                subtitle: nil,
+                author: "B. Author",
+                tags: [],
+                daysBefore: 10,
+                isFavorite: false,
+                isCurrentlyReading: false,
+                isTrashed: false,
+                lastOpenedDaysBefore: 1
+            ),
+            makeBook(
+                id: FixtureID.trashed,
+                title: "Never Opened",
+                subtitle: nil,
+                author: "C. Author",
+                tags: [],
+                daysBefore: 1,
+                isFavorite: false,
+                isCurrentlyReading: false,
+                isTrashed: false
+            )
+        ]
+
+        #expect(ids(sortedBy: .recentlyOpened, in: books) == [
+            FixtureID.old,
+            FixtureID.active,
+            FixtureID.trashed
+        ])
+    }
+
     @Test("Sample data is stable and internally valid")
     func sampleDataIsStableAndValid() {
         let books = SampleLibrary.previewBooks(referenceDate: referenceDate)
@@ -133,7 +180,8 @@ struct LibraryQueryTests {
         daysBefore: Int,
         isFavorite: Bool,
         isCurrentlyReading: Bool,
-        isTrashed: Bool
+        isTrashed: Bool,
+        lastOpenedDaysBefore: Int? = nil
     ) -> LibraryBook {
         let calendar = Calendar(identifier: .gregorian)
         let dateAdded = calendar.date(byAdding: .day, value: -daysBefore, to: referenceDate) ?? referenceDate
@@ -150,7 +198,10 @@ struct LibraryQueryTests {
             isCurrentlyReading: isCurrentlyReading,
             readingProgress: isCurrentlyReading ? 0.5 : nil,
             isTrashed: isTrashed,
-            coverStyle: .slate
+            coverStyle: .slate,
+            lastOpenedAt: lastOpenedDaysBefore.flatMap {
+                calendar.date(byAdding: .day, value: -$0, to: referenceDate)
+            }
         )
     }
 

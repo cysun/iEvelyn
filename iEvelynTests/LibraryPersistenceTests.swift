@@ -248,6 +248,7 @@ struct LibraryPersistenceTests {
             }
         }
 
+        try await repository.moveBookToTrash(id: book.id, at: referenceDate)
         try await repository.deleteBookPermanently(id: book.id)
         let counts = try await entityCounts(repository.database)
         #expect(counts.books == 0)
@@ -323,11 +324,13 @@ struct LibraryPersistenceTests {
         #expect(memoryDatabase.location.databaseURL == nil)
 
         let directoryURL = temporaryDirectory(named: "path-proof")
-        let temporaryDatabase = try LibraryDatabase.makeTemporary(in: directoryURL)
         let productionURL = try LibraryDatabase.productionDatabaseURL()
-        #expect(!temporaryDatabase.location.isProduction)
-        #expect(temporaryDatabase.location.databaseURL != productionURL)
-        #expect(temporaryDatabase.location.databaseURL?.path.hasPrefix(directoryURL.path) == true)
+        do {
+            let temporaryDatabase = try LibraryDatabase.makeTemporary(in: directoryURL)
+            #expect(!temporaryDatabase.location.isProduction)
+            #expect(temporaryDatabase.location.databaseURL != productionURL)
+            #expect(temporaryDatabase.location.databaseURL?.path.hasPrefix(directoryURL.path) == true)
+        }
 
         try FileManager.default.removeItem(at: directoryURL)
     }

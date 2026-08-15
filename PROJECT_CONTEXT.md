@@ -1,6 +1,6 @@
 # iEvelyn Project Context
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Purpose of this document
 
@@ -215,12 +215,14 @@ Migration rules:
 
 ## Current project state
 
-As of 2026-08-14:
+As of 2026-08-15:
 
 - `/Users/cysun/git/iEvelyn` is a Git repository on `main`, tracking `origin/main`; Step 1 was accepted on 2026-08-14.
 - The native SwiftUI project, app target, Swift Testing target, and XCTest UI-test target exist, and the Step 1 manual checkpoint passed.
 - Step 2 was accepted on 2026-08-14 and provides a `NavigationSplitView` library shell with isolated in-memory sample books, grid/list presentations, search, sorting, selection, and per-window transient state.
 - Step 3 was accepted on 2026-08-14. It replaced the sample-data seam with UUID domain values, the normalized GRDB schema, ordered migrations, repository access, live observations, and database-backed library projections.
+- Step 4 was accepted on 2026-08-15. It adds native book creation, details, and metadata editing; ordered author persistence; validation; favorite and recently-opened state; persisted search and sorting; and the complete Trash, restore, and explicit permanent-delete workflow.
+- Step 4 reuses the normalized Step 3 schema without a new migration or dependency. Cover art remains generated library artwork until the Step 5 asset subsystem is authorized.
 - The production database resolves to `iEvelyn/Library.sqlite` under the app sandbox's Application Support directory and uses foreign keys plus WAL. Unit/integration tests use in-memory or temporary databases, and UI tests explicitly select an in-memory launch mode.
 - Sample seeding and library reset exist only in Debug builds. Release builds contain neither the commands nor the sample provider.
 - Xcode 26.6 is installed on `/Volumes/galfrey`, selected as the active developer directory, and provides Swift 6.3.3.

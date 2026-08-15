@@ -49,7 +49,14 @@ nonisolated struct LibraryQuery: Sendable {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return true }
 
-        let searchableValues = [book.title, book.subtitle, book.authorLine]
+        let searchableValues = [
+            book.title,
+            book.subtitle,
+            book.authorLine,
+            book.summary,
+            book.languageCode,
+            book.publisher
+        ]
             .compactMap { $0 } + book.tags
 
         return searchableValues.contains {
@@ -70,6 +77,17 @@ nonisolated struct LibraryQuery: Sendable {
                 return lhs.dateAdded > rhs.dateAdded
             }
             primaryComparison = lhs.title.localizedStandardCompare(rhs.title)
+        case .recentlyOpened:
+            switch (lhs.lastOpenedAt, rhs.lastOpenedAt) {
+            case let (left?, right?) where left != right:
+                return left > right
+            case (_?, nil):
+                return true
+            case (nil, _?):
+                return false
+            default:
+                primaryComparison = lhs.title.localizedStandardCompare(rhs.title)
+            }
         }
 
         if primaryComparison != .orderedSame {

@@ -83,6 +83,7 @@ nonisolated enum LibrarySortOrder: String, CaseIterable, Identifiable, Sendable 
     case title
     case author
     case recentlyAdded
+    case recentlyOpened
 
     var id: Self { self }
 
@@ -94,6 +95,8 @@ nonisolated enum LibrarySortOrder: String, CaseIterable, Identifiable, Sendable 
             "Author"
         case .recentlyAdded:
             "Recently Added"
+        case .recentlyOpened:
+            "Recently Opened"
         }
     }
 }

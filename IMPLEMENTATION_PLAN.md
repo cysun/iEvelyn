@@ -1,6 +1,6 @@
 # iEvelyn Sequential Implementation Plan
 
-Last updated: 2026-08-14
+Last updated: 2026-08-15
 
 ## Purpose
 
@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 4 — Book management.
-- Implementation status: not started; awaiting authorization.
+- Current milestone: Step 4 — Book management, accepted on 2026-08-15.
+- Implementation status: accepted after the manual checkpoint; Step 5 has not started.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -611,7 +611,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 1 | Bootstrap native macOS project | Accepted | Manual Command-R, menus/About, light/dark appearance, and Command-U checkpoint passed on 2026-08-14. |
 | 2 | Visual library shell with sample data | Accepted | Debug build, seven unit tests, and three UI smoke tests passed; visual, navigation, search, appearance, and multi-window checkpoint accepted on 2026-08-14. |
 | 3 | SQLite persistence with GRDB | Accepted | GRDB 7.11.1 resolved; Debug and Release builds, 18 unit/integration tests, and three UI smoke tests passed; persistence, multi-window observation, and Debug reset checkpoint accepted on 2026-08-14. |
-| 4 | Book management | Not started | |
+| 4 | Book management | Accepted | Debug and Release builds, 23 unit/integration tests, and four UI tests passed; manual checkpoint accepted on 2026-08-15. |
 | 5 | Cover and asset storage | Not started | |
 | 6 | Chapter management | Not started | |
 | 7 | Markdown chapter editor | Not started | |

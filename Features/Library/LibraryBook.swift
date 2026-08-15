@@ -16,6 +16,52 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
     let readingProgress: Double?
     let isTrashed: Bool
     let coverStyle: BookCoverStyle
+    let languageCode: String
+    let publisher: String?
+    let publicationDate: Date?
+    let updatedAt: Date
+    let lastOpenedAt: Date?
+    let trashedAt: Date?
+
+    init(
+        id: ID,
+        title: String,
+        subtitle: String?,
+        authors: [String],
+        summary: String,
+        tags: [String],
+        dateAdded: Date,
+        isFavorite: Bool,
+        isCurrentlyReading: Bool,
+        readingProgress: Double?,
+        isTrashed: Bool,
+        coverStyle: BookCoverStyle,
+        languageCode: String = "en",
+        publisher: String? = nil,
+        publicationDate: Date? = nil,
+        updatedAt: Date? = nil,
+        lastOpenedAt: Date? = nil,
+        trashedAt: Date? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.authors = authors
+        self.summary = summary
+        self.tags = tags
+        self.dateAdded = dateAdded
+        self.isFavorite = isFavorite
+        self.isCurrentlyReading = isCurrentlyReading
+        self.readingProgress = readingProgress
+        self.isTrashed = isTrashed
+        self.coverStyle = coverStyle
+        self.languageCode = languageCode
+        self.publisher = publisher
+        self.publicationDate = publicationDate
+        self.updatedAt = updatedAt ?? dateAdded
+        self.lastOpenedAt = lastOpenedAt
+        self.trashedAt = trashedAt
+    }
 
     var authorLine: String {
         authors.joined(separator: ", ")
@@ -23,6 +69,18 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
 
     var clampedReadingProgress: Double? {
         readingProgress.map { min(max($0, 0), 1) }
+    }
+
+    var metadataInput: BookMetadataInput {
+        BookMetadataInput(
+            title: title,
+            subtitle: subtitle ?? "",
+            authors: authors.isEmpty ? [""] : authors,
+            summary: summary,
+            languageCode: languageCode,
+            publisher: publisher ?? "",
+            publicationDate: publicationDate
+        )
     }
 }
 
