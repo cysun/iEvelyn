@@ -225,6 +225,109 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
+    func testChapterManagementAddSelectReorderAndPersist() throws {
+        let app = launchApplication(seedSampleLibrary: false)
+
+        app.descendants(matching: .any)["library-add-book"].click()
+        let title = app.textFields["book-editor-title"]
+        let author = app.textFields["book-editor-author-0"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.click()
+        title.typeText("Chapter Workflow")
+        author.click()
+        author.typeText("Test Author")
+        app.descendants(matching: .any)["book-editor-save"].click()
+
+        let actions = app.descendants(matching: .any)["Actions for Chapter Workflow"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        openBookInfo(using: actions, in: app)
+
+        let chapterManagement = app.descendants(matching: .any)["chapter-management"]
+        XCTAssertTrue(chapterManagement.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["No Chapters"].exists)
+
+        let bookInfoScroll = app.scrollViews["book-info-scroll"]
+        XCTAssertTrue(bookInfoScroll.waitForExistence(timeout: 5))
+        let initialAdd = app.descendants(matching: .any)["chapter-add"]
+        XCTAssertTrue(initialAdd.waitForExistence(timeout: 5))
+        initialAdd.click()
+        enterChapterTitle("Opening", in: app)
+        let opening = app.buttons["Opening"]
+        XCTAssertTrue(opening.waitForExistence(timeout: 5))
+
+        let addChapter = app.descendants(matching: .any)["chapter-add"]
+        addChapter.click()
+        enterChapterTitle("Ending", in: app)
+        let ending = app.buttons["Ending"]
+        XCTAssertTrue(ending.waitForExistence(timeout: 5))
+
+        opening.click()
+        let moveDown = app.descendants(matching: .any)["chapter-move-down"]
+        XCTAssertTrue(moveDown.waitForExistence(timeout: 5))
+        XCTAssertTrue(moveDown.isEnabled)
+        moveDown.click()
+        waitForChapter(ending, toAppearAbove: opening)
+
+        app.buttons["Close"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
+        openBookInfo(using: actions, in: app)
+
+        XCTAssertTrue(ending.waitForExistence(timeout: 5))
+        waitForChapter(ending, toAppearAbove: opening)
+        let moveUp = app.descendants(matching: .any)["chapter-move-up"]
+        XCTAssertTrue(moveUp.waitForExistence(timeout: 5))
+        XCTAssertFalse(moveUp.isEnabled, "The first chapter should be selected when Book Info reopens.")
+        XCTAssertEqual(app.descendants(matching: .any)["chapter-summary"].value as? String, "2 Chapters • 0 words")
+
+        bookInfoScroll.swipeUp()
+        let delete = app.descendants(matching: .any)["chapter-delete"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.click()
+        let confirmDelete = app.descendants(matching: .any)["chapter-confirm-delete"]
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        confirmDelete.click()
+        XCTAssertTrue(ending.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(opening.exists)
+        XCTAssertEqual(app.descendants(matching: .any)["chapter-summary"].value as? String, "1 Chapter • 0 words")
+    }
+
+    @MainActor
+    private func enterChapterTitle(_ value: String, in app: XCUIApplication) {
+        let field = app.textFields["chapter-title-field"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        field.click()
+        field.typeKey("a", modifierFlags: .command)
+        field.typeText(value)
+        app.descendants(matching: .any)["chapter-title-save"].click()
+    }
+
+    @MainActor
+    private func waitForChapter(_ upperChapter: XCUIElement, toAppearAbove lowerChapter: XCUIElement) {
+        let reordered = expectation(
+            for: NSPredicate { _, _ in
+                upperChapter.exists && lowerChapter.exists && upperChapter.frame.minY < lowerChapter.frame.minY
+            },
+            evaluatedWith: upperChapter
+        )
+        wait(for: [reordered], timeout: 5)
+    }
+
+    @MainActor
+    private func openBookInfo(using actions: XCUIElement, in app: XCUIApplication) {
+        let bookInfoMenuItem = app.menuItems["Book Info…"]
+
+        for _ in 0..<3 {
+            actions.click()
+            if bookInfoMenuItem.waitForExistence(timeout: 2), bookInfoMenuItem.isHittable {
+                bookInfoMenuItem.click()
+                return
+            }
+        }
+
+        XCTFail("The book actions menu should expose Book Info.")
+    }
+
+    @MainActor
     private func launchApplication(seedSampleLibrary: Bool) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += [

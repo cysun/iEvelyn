@@ -179,6 +179,59 @@ nonisolated struct Chapter: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
+extension Chapter {
+    nonisolated var wordCount: Int {
+        markdown.split { character in
+            guard !character.isLetter, !character.isNumber else { return false }
+            return character != "'" && character != "’"
+        }
+        .count
+    }
+}
+
+nonisolated struct ChapterTitleInput: Equatable, Sendable {
+    var title: String
+
+    func validated() throws -> String {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTitle.isEmpty else {
+            throw ChapterValidationError.titleRequired
+        }
+        return trimmedTitle
+    }
+}
+
+nonisolated enum ChapterValidationError: LocalizedError, Equatable {
+    case titleRequired
+
+    var errorDescription: String? {
+        switch self {
+        case .titleRequired:
+            "Enter a chapter title."
+        }
+    }
+}
+
+nonisolated struct ChapterCollectionSummary: Equatable, Sendable {
+    let chapterCount: Int
+    let wordCount: Int
+
+    init(chapters: [Chapter]) {
+        chapterCount = chapters.count
+        wordCount = chapters.reduce(into: 0) { count, chapter in
+            count += chapter.wordCount
+        }
+    }
+}
+
+/// A transaction snapshot retained only while chapter-deletion undo is available.
+nonisolated struct ChapterDeletion: Equatable, Sendable {
+    let chapter: Chapter
+    let linkedAssetIDs: [UUID]
+    let hadLinkedReadingProgress: Bool
+    let linkedBookmarkIDs: [UUID]
+}
+
 nonisolated enum AssetPurpose: String, Codable, CaseIterable, Sendable {
     case cover
     case chapterImage

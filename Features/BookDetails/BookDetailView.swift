@@ -2,6 +2,7 @@ import SwiftUI
 
 struct BookDetailView: View {
     let book: LibraryBook?
+    let chapterModel: ChapterManagementViewModel
     let isBusy: Bool
     let loadCoverImage: (Asset) async throws -> Data
     let onCoverLoadError: (Error) -> Void
@@ -48,6 +49,11 @@ struct BookDetailView: View {
                         }
                     }
 
+                    ChapterManagementView(
+                        model: chapterModel,
+                        isReadOnly: book.isTrashed
+                    )
+
                     GroupBox("About") {
                         Text(book.summary.isEmpty ? "No summary provided." : book.summary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -67,6 +73,7 @@ struct BookDetailView: View {
                 .padding(LibraryDesignTokens.contentPadding)
                 .frame(maxWidth: .infinity, alignment: .top)
             }
+            .accessibilityIdentifier("book-info-scroll")
             .navigationTitle(book.title)
             .confirmationDialog(
                 "Delete “\(book.title)” permanently?",

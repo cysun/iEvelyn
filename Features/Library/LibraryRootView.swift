@@ -70,6 +70,7 @@ struct LibraryRootView: View {
             NavigationStack {
                 BookDetailView(
                     book: model.book(id: presentation.id),
+                    chapterModel: presentation.chapterModel,
                     isBusy: model.isPerformingOperation,
                     loadCoverImage: model.loadCoverImage,
                     onCoverLoadError: model.reportCoverLoadFailure,
@@ -170,12 +171,16 @@ struct LibraryRootView: View {
     }
 
     private func showBookInfo(_ book: LibraryBook) {
-        bookInfoPresentation = BookInfoPresentation(id: book.id)
+        bookInfoPresentation = BookInfoPresentation(
+            id: book.id,
+            chapterModel: model.makeChapterManagementModel(for: book.id)
+        )
     }
 }
 
 private struct BookInfoPresentation: Identifiable {
     let id: LibraryBook.ID
+    let chapterModel: ChapterManagementViewModel
 }
 
 private struct ReaderPresentation: Identifiable {

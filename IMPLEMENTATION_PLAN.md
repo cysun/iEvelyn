@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 5 — Cover and asset storage.
-- Implementation status: awaiting manual test; Step 4A was accepted and committed as `26e9225`.
+- Current milestone: Step 7 — Markdown chapter editor.
+- Implementation status: in progress; Step 6 was accepted on 2026-08-15.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -646,9 +646,9 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 3 | SQLite persistence with GRDB | Accepted | GRDB 7.11.1 resolved; Debug and Release builds, 18 unit/integration tests, and three UI smoke tests passed; persistence, multi-window observation, and Debug reset checkpoint accepted on 2026-08-14. |
 | 4 | Book management | Accepted | Debug and Release builds, 23 unit/integration tests, and four UI tests passed; manual checkpoint accepted on 2026-08-15. |
 | 4A | Reader-first library navigation redesign | Accepted | Debug and Release builds, 24 unit/integration tests, and five UI tests passed; reader-first grid/list design, streamlined metadata, and text-led list accepted on 2026-08-15. |
-| 5 | Cover and asset storage | Awaiting manual test | JPEG/PNG/HEIC import, UUID-addressed originals, cached thumbnails, safe asset URLs, replace/remove, orphan repair, and permanent cleanup implemented without a schema change or dependency; Debug/Release builds and all 38 tests pass. |
-| 6 | Chapter management | Not started | |
-| 7 | Markdown chapter editor | Not started | |
+| 5 | Cover and asset storage | Accepted | JPEG/PNG/HEIC import, UUID-addressed originals, cached thumbnails, safe asset URLs, replace/remove, orphan repair, and permanent cleanup implemented without a schema change or dependency; Debug/Release builds and all 38 tests pass; manual checkpoint accepted on 2026-08-15. |
+| 6 | Chapter management | Accepted | Transactional add, rename, duplicate, delete/undo, and reorder preserve stable chapter identities and report live chapter/word counts; Debug/Release builds, 38 unit/integration tests, and six UI tests passed; manual checkpoint accepted on 2026-08-15. |
+| 7 | Markdown chapter editor | In progress | |
 | 8 | Markdown rendering engine | Not started | |
 | 9 | Reading experience | Not started | |
 | 10 | Progress, bookmarks, and notes | Not started | |

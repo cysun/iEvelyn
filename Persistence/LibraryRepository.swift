@@ -13,11 +13,22 @@ nonisolated protocol LibraryRepository: Sendable {
     func importCover(bookID: UUID, from sourceURL: URL, at date: Date) async throws
     func removeCover(bookID: UUID, at date: Date) async throws
     func coverThumbnailData(for asset: Asset) async throws -> Data
+    func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error>
+    func createChapter(bookID: UUID, title: String, at date: Date) async throws -> UUID
+    func renameChapter(id: UUID, title: String, at date: Date) async throws
+    func duplicateChapter(id: UUID, at date: Date) async throws -> UUID
+    func deleteChapter(id: UUID, at date: Date) async throws -> ChapterDeletion
+    func restoreChapterDeletion(_ deletion: ChapterDeletion, at date: Date) async throws
+    func reorderChapters(bookID: UUID, orderedChapterIDs: [UUID], at date: Date) async throws
 }
 
 nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
     case chapterOrderDoesNotMatchBook
+    case chapterNotFound
+    case chapterAlreadyExists
+    case chapterPositionLimitReached
     case bookNotFound
+    case bookIsInTrash
     case permanentDeleteRequiresTrash
     case readOnlyRepository
 
@@ -25,8 +36,16 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
         switch self {
         case .chapterOrderDoesNotMatchBook:
             "The chapter order must contain every chapter in the book exactly once."
+        case .chapterNotFound:
+            "The selected chapter no longer exists."
+        case .chapterAlreadyExists:
+            "The deleted chapter has already been restored."
+        case .chapterPositionLimitReached:
+            "The chapter order could not be changed because its stored positions are out of range."
         case .bookNotFound:
             "The selected book no longer exists."
+        case .bookIsInTrash:
+            "Restore the book before changing its chapters."
         case .permanentDeleteRequiresTrash:
             "Move the book to Trash before deleting it permanently."
         case .readOnlyRepository:
@@ -75,6 +94,36 @@ extension LibraryRepository {
     func coverThumbnailData(for asset: Asset) async throws -> Data {
         throw LibraryRepositoryError.readOnlyRepository
     }
+
+    nonisolated func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error> {
+        AsyncThrowingStream { continuation in
+            continuation.finish(throwing: LibraryRepositoryError.readOnlyRepository)
+        }
+    }
+
+    func createChapter(bookID: UUID, title: String, at date: Date) async throws -> UUID {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func renameChapter(id: UUID, title: String, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func duplicateChapter(id: UUID, at date: Date) async throws -> UUID {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func deleteChapter(id: UUID, at date: Date) async throws -> ChapterDeletion {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func restoreChapterDeletion(_ deletion: ChapterDeletion, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func reorderChapters(bookID: UUID, orderedChapterIDs: [UUID], at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
 }
 
 nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
@@ -100,6 +149,35 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 do {
                     for try await books in values {
                         continuation.yield(books)
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error> {
+        let observation = ValueObservation.tracking { database in
+            try Self.fetchChapters(forBookID: bookID, database: database)
+        }
+        let values = observation.values(
+            in: database.writer,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await chapters in values {
+                        continuation.yield(chapters)
                     }
                     continuation.finish()
                 } catch is CancellationError {
@@ -405,44 +483,260 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
     func chapters(forBookID bookID: UUID) async throws -> [Chapter] {
         try await database.read { database in
-            try Chapter.fetchAll(
-                database,
-                sql: """
-                    SELECT * FROM chapters
-                    WHERE bookID = ?
-                    ORDER BY position, id
-                    """,
-                arguments: [bookID.databaseString]
+            try Self.fetchChapters(forBookID: bookID, database: database)
+        }
+    }
+
+    func createChapter(
+        bookID: UUID,
+        title: String,
+        at date: Date = .now
+    ) async throws -> UUID {
+        let title = try ChapterTitleInput(title: title).validated()
+        let chapter = try await database.write { database in
+            var book = try Self.fetchEditableBook(id: bookID, database: database)
+            let position = try Self.nextTemporaryChapterPosition(
+                bookID: bookID,
+                additionalPositionCount: 1,
+                database: database
             )
+            let chapter = Chapter(
+                bookID: bookID,
+                title: title,
+                position: position,
+                createdAt: date,
+                updatedAt: date
+            )
+            try chapter.insert(database)
+
+            book.updatedAt = date
+            try book.update(database)
+            return chapter
+        }
+        return chapter.id
+    }
+
+    func renameChapter(
+        id: UUID,
+        title: String,
+        at date: Date = .now
+    ) async throws {
+        let title = try ChapterTitleInput(title: title).validated()
+        try await database.write { database in
+            guard var chapter = try Chapter.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.chapterNotFound
+            }
+            var book = try Self.fetchEditableBook(id: chapter.bookID, database: database)
+            guard chapter.title != title else { return }
+
+            chapter.title = title
+            chapter.updatedAt = date
+            try chapter.update(database)
+
+            book.updatedAt = date
+            try book.update(database)
+        }
+    }
+
+    func duplicateChapter(id: UUID, at date: Date = .now) async throws -> UUID {
+        try await database.write { database in
+            guard let source = try Chapter.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.chapterNotFound
+            }
+            var book = try Self.fetchEditableBook(id: source.bookID, database: database)
+            let chapters = try Self.fetchChapters(forBookID: source.bookID, database: database)
+            guard let sourceIndex = chapters.firstIndex(where: { $0.id == source.id }) else {
+                throw LibraryRepositoryError.chapterNotFound
+            }
+
+            let temporaryPosition = try Self.nextTemporaryChapterPosition(
+                bookID: source.bookID,
+                additionalPositionCount: chapters.count + 2,
+                database: database
+            )
+            let duplicate = Chapter(
+                bookID: source.bookID,
+                title: source.title,
+                markdown: source.markdown,
+                position: temporaryPosition,
+                renderRevision: source.renderRevision,
+                sourceHash: source.sourceHash,
+                createdAt: date,
+                updatedAt: date
+            )
+            try duplicate.insert(database)
+
+            var orderedIDs = chapters.map(\.id)
+            orderedIDs.insert(duplicate.id, at: sourceIndex + 1)
+            try Self.setChapterOrder(
+                bookID: source.bookID,
+                orderedChapterIDs: orderedIDs,
+                updatedAt: date,
+                database: database
+            )
+
+            book.updatedAt = date
+            try book.update(database)
+            return duplicate.id
+        }
+    }
+
+    func deleteChapter(id: UUID, at date: Date = .now) async throws -> ChapterDeletion {
+        try await database.write { database in
+            guard let chapter = try Chapter.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.chapterNotFound
+            }
+            var book = try Self.fetchEditableBook(id: chapter.bookID, database: database)
+            let linkedAssetIDs = try UUID.fetchAll(
+                database,
+                sql: "SELECT id FROM assets WHERE chapterID = ? ORDER BY id",
+                arguments: [id.databaseString]
+            )
+            let hadLinkedReadingProgress = try Bool.fetchOne(
+                database,
+                sql: "SELECT EXISTS(SELECT 1 FROM readingProgress WHERE chapterID = ?)",
+                arguments: [id.databaseString]
+            ) ?? false
+            let linkedBookmarkIDs = try UUID.fetchAll(
+                database,
+                sql: "SELECT id FROM bookmarks WHERE chapterID = ? ORDER BY id",
+                arguments: [id.databaseString]
+            )
+
+            _ = try chapter.delete(database)
+            let remainingIDs = try Self.fetchChapters(
+                forBookID: chapter.bookID,
+                database: database
+            )
+            .map(\.id)
+            try Self.setChapterOrder(
+                bookID: chapter.bookID,
+                orderedChapterIDs: remainingIDs,
+                updatedAt: date,
+                database: database
+            )
+
+            book.updatedAt = date
+            try book.update(database)
+            return ChapterDeletion(
+                chapter: chapter,
+                linkedAssetIDs: linkedAssetIDs,
+                hadLinkedReadingProgress: hadLinkedReadingProgress,
+                linkedBookmarkIDs: linkedBookmarkIDs
+            )
+        }
+    }
+
+    func restoreChapterDeletion(
+        _ deletion: ChapterDeletion,
+        at date: Date = .now
+    ) async throws {
+        try await database.write { database in
+            let deletedChapter = deletion.chapter
+            var book = try Self.fetchEditableBook(id: deletedChapter.bookID, database: database)
+            guard try Chapter.fetchOne(database, key: deletedChapter.id.databaseString) == nil else {
+                throw LibraryRepositoryError.chapterAlreadyExists
+            }
+
+            let currentChapters = try Self.fetchChapters(
+                forBookID: deletedChapter.bookID,
+                database: database
+            )
+            let temporaryPosition = try Self.nextTemporaryChapterPosition(
+                bookID: deletedChapter.bookID,
+                additionalPositionCount: currentChapters.count + 2,
+                database: database
+            )
+            var restoredChapter = deletedChapter
+            restoredChapter.position = temporaryPosition
+            try restoredChapter.insert(database)
+
+            var orderedIDs = currentChapters.map(\.id)
+            orderedIDs.insert(
+                restoredChapter.id,
+                at: min(deletedChapter.position, orderedIDs.count)
+            )
+            try Self.setChapterOrder(
+                bookID: deletedChapter.bookID,
+                orderedChapterIDs: orderedIDs,
+                updatedAt: date,
+                database: database
+            )
+
+            if !deletion.linkedAssetIDs.isEmpty {
+                try database.execute(
+                    sql: """
+                        UPDATE assets SET chapterID = ?
+                        WHERE bookID = ? AND chapterID IS NULL AND id IN (\(deletion.linkedAssetIDs.map { _ in "?" }.joined(separator: ", ")))
+                        """,
+                    arguments: StatementArguments(
+                        [restoredChapter.id.databaseString, restoredChapter.bookID.databaseString]
+                            + deletion.linkedAssetIDs.map(\.databaseString)
+                    )
+                )
+            }
+            if deletion.hadLinkedReadingProgress {
+                try database.execute(
+                    sql: "UPDATE readingProgress SET chapterID = ? WHERE bookID = ? AND chapterID IS NULL",
+                    arguments: [restoredChapter.id.databaseString, restoredChapter.bookID.databaseString]
+                )
+            }
+            if !deletion.linkedBookmarkIDs.isEmpty {
+                try database.execute(
+                    sql: """
+                        UPDATE bookmarks SET chapterID = ?
+                        WHERE bookID = ? AND chapterID IS NULL AND id IN (\(deletion.linkedBookmarkIDs.map { _ in "?" }.joined(separator: ", ")))
+                        """,
+                    arguments: StatementArguments(
+                        [restoredChapter.id.databaseString, restoredChapter.bookID.databaseString]
+                            + deletion.linkedBookmarkIDs.map(\.databaseString)
+                    )
+                )
+            }
+
+            book.updatedAt = date
+            try book.update(database)
+        }
+    }
+
+    func reorderChapters(
+        bookID: UUID,
+        orderedChapterIDs: [UUID],
+        at date: Date = .now
+    ) async throws {
+        try await database.write { database in
+            var book = try Self.fetchEditableBook(id: bookID, database: database)
+            let storedIDs = try Self.fetchChapters(forBookID: bookID, database: database).map(\.id)
+            guard storedIDs.count == orderedChapterIDs.count,
+                  Set(storedIDs) == Set(orderedChapterIDs) else {
+                throw LibraryRepositoryError.chapterOrderDoesNotMatchBook
+            }
+            guard storedIDs != orderedChapterIDs else { return }
+
+            try Self.setChapterOrder(
+                bookID: bookID,
+                orderedChapterIDs: orderedChapterIDs,
+                updatedAt: date,
+                database: database
+            )
+            book.updatedAt = date
+            try book.update(database)
         }
     }
 
     func replaceChapterOrder(bookID: UUID, orderedChapterIDs: [UUID]) async throws {
         try await database.write { database in
-            let storedIDs = try UUID.fetchAll(
-                database,
-                sql: "SELECT id FROM chapters WHERE bookID = ?",
-                arguments: [bookID.databaseString]
-            )
+            let storedIDs = try Self.fetchChapters(forBookID: bookID, database: database).map(\.id)
             guard storedIDs.count == orderedChapterIDs.count,
                   Set(storedIDs) == Set(orderedChapterIDs) else {
                 throw LibraryRepositoryError.chapterOrderDoesNotMatchBook
             }
-
-            let temporaryPositionBase = Int.max - orderedChapterIDs.count
-            for (offset, chapterID) in orderedChapterIDs.enumerated() {
-                try database.execute(
-                    sql: "UPDATE chapters SET position = ? WHERE id = ? AND bookID = ?",
-                    arguments: [temporaryPositionBase + offset, chapterID.databaseString, bookID.databaseString]
-                )
-            }
-
-            for (position, chapterID) in orderedChapterIDs.enumerated() {
-                try database.execute(
-                    sql: "UPDATE chapters SET position = ? WHERE id = ? AND bookID = ?",
-                    arguments: [position, chapterID.databaseString, bookID.databaseString]
-                )
-            }
+            try Self.setChapterOrder(
+                bookID: bookID,
+                orderedChapterIDs: orderedChapterIDs,
+                updatedAt: nil,
+                database: database
+            )
         }
     }
 
@@ -575,6 +869,89 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             sql: "SELECT * FROM assets WHERE bookID = ? AND purpose = ?",
             arguments: [bookID.databaseString, AssetPurpose.cover.rawValue]
         )
+    }
+
+    private static func fetchChapters(
+        forBookID bookID: UUID,
+        database: Database
+    ) throws -> [Chapter] {
+        try Chapter.fetchAll(
+            database,
+            sql: """
+                SELECT * FROM chapters
+                WHERE bookID = ?
+                ORDER BY position, id
+                """,
+            arguments: [bookID.databaseString]
+        )
+    }
+
+    private static func fetchEditableBook(id: UUID, database: Database) throws -> Book {
+        guard let book = try Book.fetchOne(database, key: id.databaseString) else {
+            throw LibraryRepositoryError.bookNotFound
+        }
+        guard book.trashedAt == nil else {
+            throw LibraryRepositoryError.bookIsInTrash
+        }
+        return book
+    }
+
+    private static func nextTemporaryChapterPosition(
+        bookID: UUID,
+        additionalPositionCount: Int,
+        database: Database
+    ) throws -> Int {
+        let maximumPosition = try Int.fetchOne(
+            database,
+            sql: "SELECT MAX(position) FROM chapters WHERE bookID = ?",
+            arguments: [bookID.databaseString]
+        ) ?? -1
+        let (nextPosition, nextOverflowed) = maximumPosition.addingReportingOverflow(1)
+        let (_, rangeOverflowed) = nextPosition.addingReportingOverflow(additionalPositionCount)
+        guard !nextOverflowed, !rangeOverflowed else {
+            throw LibraryRepositoryError.chapterPositionLimitReached
+        }
+        return nextPosition
+    }
+
+    private static func setChapterOrder(
+        bookID: UUID,
+        orderedChapterIDs: [UUID],
+        updatedAt date: Date?,
+        database: Database
+    ) throws {
+        guard !orderedChapterIDs.isEmpty else { return }
+        let temporaryPositionBase = try nextTemporaryChapterPosition(
+            bookID: bookID,
+            additionalPositionCount: orderedChapterIDs.count,
+            database: database
+        )
+
+        for (offset, chapterID) in orderedChapterIDs.enumerated() {
+            try database.execute(
+                sql: "UPDATE chapters SET position = ? WHERE id = ? AND bookID = ?",
+                arguments: [
+                    temporaryPositionBase + offset,
+                    chapterID.databaseString,
+                    bookID.databaseString
+                ]
+            )
+            guard database.changesCount == 1 else {
+                throw LibraryRepositoryError.chapterOrderDoesNotMatchBook
+            }
+        }
+
+        for (position, chapterID) in orderedChapterIDs.enumerated() {
+            guard var chapter = try Chapter.fetchOne(database, key: chapterID.databaseString),
+                  chapter.bookID == bookID else {
+                throw LibraryRepositoryError.chapterOrderDoesNotMatchBook
+            }
+            chapter.position = position
+            if let date {
+                chapter.updatedAt = date
+            }
+            try chapter.update(database)
+        }
     }
 }
 

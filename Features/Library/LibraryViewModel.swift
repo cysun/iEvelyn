@@ -52,6 +52,14 @@ final class LibraryViewModel {
         books.first { $0.id == id }
     }
 
+    func makeChapterManagementModel(for bookID: UUID) -> ChapterManagementViewModel {
+        ChapterManagementViewModel(
+            bookID: bookID,
+            repository: repository,
+            now: now
+        )
+    }
+
     func loadCoverImage(for asset: Asset) async throws -> Data {
         let cacheKey = asset.id as NSUUID
         if let cachedData = coverCache.object(forKey: cacheKey) {
