@@ -2,10 +2,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct LibraryRootView: View {
+    @Environment(\.openWindow) private var openWindow
     @State private var model: LibraryViewModel
     @State private var editorConfiguration: BookEditorConfiguration?
     @State private var bookInfoPresentation: BookInfoPresentation?
-    @State private var readerPresentation: ReaderPresentation?
     @State private var coverImportBookID: UUID?
     @State private var isCoverImporterPresented = false
 
@@ -32,7 +32,11 @@ struct LibraryRootView: View {
                     if book.isTrashed {
                         showBookInfo(book)
                     } else {
-                        readerPresentation = ReaderPresentation(id: book.id, title: book.title)
+                        openWindow(
+                            id: SceneIdentifier.reader,
+                            value: ReaderWindowRoute(bookID: book.id)
+                        )
+                        Task { await model.markOpened(book) }
                     }
                 },
                 onShowBookInfo: { book in
@@ -123,29 +127,6 @@ struct LibraryRootView: View {
             .frame(minWidth: 580, idealWidth: 680, minHeight: 640, idealHeight: 760)
             .interactiveDismissDisabled(presentation.chapterEditorModel.shouldPreventDismissal)
         }
-        .sheet(item: $readerPresentation) { presentation in
-            VStack(spacing: 18) {
-                Image(systemName: "book.closed")
-                    .font(.system(size: 44))
-                    .foregroundStyle(.secondary)
-
-                Text("Reader Not Available Yet")
-                    .font(.title2.bold())
-
-                Text("The reading view for “\(presentation.title)” has not been implemented yet. Use the book's More menu for information and editing.")
-                    .multilineTextAlignment(.center)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 380)
-
-                Button("OK") {
-                    readerPresentation = nil
-                }
-                .keyboardShortcut(.defaultAction)
-                .accessibilityIdentifier("reader-unavailable-dismiss")
-            }
-            .padding(32)
-            .frame(minWidth: 460, minHeight: 260)
-        }
         .fileImporter(
             isPresented: $isCoverImporterPresented,
             allowedContentTypes: [.jpeg, .png, .heic],
@@ -197,11 +178,6 @@ private struct BookInfoPresentation: Identifiable {
     let chapterModel: ChapterManagementViewModel
     let chapterEditorModel: ChapterEditorViewModel
     let chapterPreviewModel: ChapterPreviewViewModel
-}
-
-private struct ReaderPresentation: Identifiable {
-    let id: LibraryBook.ID
-    let title: String
 }
 
 #if DEBUG

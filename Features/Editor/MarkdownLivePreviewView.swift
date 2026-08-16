@@ -118,20 +118,9 @@ private struct RenderedMarkdownWebView: View {
         self.html = html
         self.cacheKey = cacheKey
 
-        var configuration = WebPage.Configuration()
-        configuration.websiteDataStore = .nonPersistent()
-        configuration.loadsSubresources = true
-        configuration.allowsAirPlayForMediaPlayback = false
-        var navigationPreferences = configuration.defaultNavigationPreferences
-        navigationPreferences.allowsContentJavaScript = false
-        configuration.defaultNavigationPreferences = navigationPreferences
-        if let scheme = URLScheme(BookAssetReference.scheme) {
-            configuration.urlSchemeHandlers[scheme] = BookAssetURLSchemeHandler(loader: assetLoader)
-        }
-
         _page = State(
             initialValue: WebPage(
-                configuration: configuration,
+                configuration: BookContentWebConfiguration.make(assetLoader: assetLoader),
                 navigationDecider: MarkdownPreviewNavigationDecider()
             )
         )
@@ -166,40 +155,6 @@ private struct RenderedMarkdownWebView: View {
                 return
             } catch {
                 loadErrorMessage = error.localizedDescription
-            }
-        }
-    }
-}
-
-nonisolated private struct BookAssetURLSchemeHandler: URLSchemeHandler {
-    let loader: BookAssetDataLoader
-
-    func reply(
-        for request: URLRequest
-    ) -> AsyncThrowingStream<URLSchemeTaskResult, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    guard let url = request.url else {
-                        throw LibraryAssetError.invalidAssetURL
-                    }
-                    let payload = try await loader.payload(for: url)
-                    try Task.checkCancellation()
-                    let response = URLResponse(
-                        url: url,
-                        mimeType: payload.mediaType,
-                        expectedContentLength: payload.data.count,
-                        textEncodingName: nil
-                    )
-                    continuation.yield(.response(response))
-                    continuation.yield(.data(payload.data))
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in
-                task.cancel()
             }
         }
     }

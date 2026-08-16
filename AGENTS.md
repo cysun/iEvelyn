@@ -167,14 +167,14 @@ Prefer feature-local types over a large generic utilities layer. Do not introduc
 - Do not claim a build or test passed unless it was run in the current environment.
 - If verification cannot run because Xcode or another prerequisite is missing, report that plainly and do not substitute unsupported confidence.
 
-The `iEvelyn` scheme uses Xcode 26.6 on Apple silicon. Step 3 added Swift Package Manager resolution, and Step 7 verified the current build and test commands. They keep build output and the GRDB checkout on the configured external volume:
+The `iEvelyn` scheme uses Xcode 26.6 on Apple silicon. Step 3 added Swift Package Manager resolution, and Step 9 verified the current build and test commands. They keep build output and package checkouts on the configured external volume:
 
 ```sh
 xcodebuild -list -project iEvelyn.xcodeproj
 xcodebuild -resolvePackageDependencies -project iEvelyn.xcodeproj -scheme iEvelyn -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3 -clonedSourcePackagesDirPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages
-xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step7 -clonedSourcePackagesDirPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages build
-xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -configuration Release -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step7-Release -clonedSourcePackagesDirPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages build
-xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step7 -clonedSourcePackagesDirPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages -parallel-testing-enabled NO test
+xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -configuration Debug -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step9 -clonedSourcePackagesDirPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages build
+xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -configuration Release -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step9-Release -clonedSourcePackagesDirPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages build
+xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -destination platform=macOS,arch=arm64 -derivedDataPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step9 -clonedSourcePackagesDirPath /Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages -parallel-testing-enabled NO test
 ```
 
 Discover schemes with `xcodebuild -list`; do not invent scheme names or destinations.

@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 8 — Markdown rendering engine.
-- Implementation status: accepted on 2026-08-15; Step 9 has not started.
+- Current milestone: Step 10 — Progress, bookmarks, and notes.
+- Implementation status: not started; Step 9 was accepted on 2026-08-15 and is ready to commit.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -650,7 +650,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 6 | Chapter management | Accepted | Transactional add, rename, duplicate, delete/undo, and reorder preserve stable chapter identities and report live chapter/word counts; Debug/Release builds, 38 unit/integration tests, and six UI tests passed; manual checkpoint accepted on 2026-08-15. |
 | 7 | Markdown chapter editor | Accepted | Native Markdown source editing, ordered debounced autosave with optimistic conflict recovery, UTF-8 Markdown/plain-text import, undo/find/edit commands, live counts, and the Step 8 preview placeholder are implemented; Debug/Release builds and all 54 tests (47 unit/integration and seven UI) passed; manual checkpoint accepted on 2026-08-15. |
 | 8 | Markdown rendering engine | Accepted | `swift-markdown` rendering, separate safe reader HTML and EPUB XHTML output, stable anchors, repository-validated assets, bounded derived caching, and live WebKit preview are implemented; the WebKit-required client-network entitlement is paired with restrictive content-security and navigation policies. Debug/Release builds and all 60 tests (53 unit/integration and seven UI) passed; the manual checkpoint was accepted on 2026-08-15. |
-| 9 | Reading experience | Not started | |
+| 9 | Reading experience | Accepted | Dedicated multi-window reading, continuous WebKit chapter rendering, single native table-of-contents control, boundary navigation, book-wide find, responsive persistent appearance controls, native full screen, safe external links, and quiet controls are implemented. Debug/Release builds and all 70 tests (62 unit/integration and eight UI) passed after the sidebar and resizing corrections; the manual checkpoint was accepted on 2026-08-15. |
 | 10 | Progress, bookmarks, and notes | Not started | |
 | 11 | Full-text search and organization | Not started | |
 | 12 | EPUB 3 export | Not started | |

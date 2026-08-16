@@ -1,18 +1,6 @@
 import Foundation
 import Observation
 
-nonisolated struct BookAssetDataLoader: Sendable {
-    private let repository: any LibraryRepository
-
-    init(repository: any LibraryRepository) {
-        self.repository = repository
-    }
-
-    func payload(for url: URL) async throws -> LibraryAssetPayload {
-        try await repository.bookAssetPayload(for: url)
-    }
-}
-
 @MainActor
 @Observable
 final class ChapterPreviewViewModel {

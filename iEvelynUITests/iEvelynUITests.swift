@@ -31,16 +31,20 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
-    func testBookActivationUsesReaderSeamAndItemMoreMenu() throws {
+    func testBookActivationOpensAndClosesDedicatedReaderWindow() throws {
         let app = launchApplication(seedSampleLibrary: true)
 
         let book = app.buttons["Kindred, by Octavia E. Butler"]
         XCTAssertTrue(book.waitForExistence(timeout: 10))
         book.click()
 
-        XCTAssertTrue(app.staticTexts["Reader Not Available Yet"].waitForExistence(timeout: 5))
-        app.buttons["OK"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["library-grid"].exists)
+        XCTAssertTrue(
+            app.staticTexts["No Chapters"].waitForExistence(timeout: 10),
+            "Book activation should open the dedicated reader window."
+        )
+        app.typeKey("w", modifierFlags: .command)
+
+        XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["library-detail-empty"].exists)
         XCTAssertFalse(
             app.descendants(matching: .any)["library-book-actions"].exists,
@@ -100,8 +104,8 @@ final class iEvelynUITests: XCTestCase {
         let listBook = app.buttons["Kindred, by Octavia E. Butler"]
         XCTAssertTrue(listBook.waitForExistence(timeout: 5))
         listBook.click()
-        XCTAssertTrue(app.staticTexts["Reader Not Available Yet"].waitForExistence(timeout: 5))
-        app.descendants(matching: .any)["reader-unavailable-dismiss"].click()
+        XCTAssertTrue(app.staticTexts["No Chapters"].waitForExistence(timeout: 10))
+        app.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(
             app.descendants(matching: .any)["Actions for Kindred"].waitForExistence(timeout: 5)
         )
@@ -340,6 +344,79 @@ final class iEvelynUITests: XCTestCase {
         scroll(editor, intoViewUsing: app.scrollViews["book-info-scroll"])
         XCTAssertEqual(editor.value as? String, "# Opening\n\nHello Unicode chapter")
         XCTAssertTrue(app.staticTexts["Saved"].exists)
+    }
+
+    @MainActor
+    func testReaderMovesBetweenChaptersAndReturnsToLibrary() throws {
+        let app = launchApplication(seedSampleLibrary: false)
+
+        app.descendants(matching: .any)["library-add-book"].click()
+        let title = app.textFields["book-editor-title"]
+        let author = app.textFields["book-editor-author-0"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.click()
+        title.typeText("Reader Workflow")
+        author.click()
+        author.typeText("Test Author")
+        app.descendants(matching: .any)["book-editor-save"].click()
+
+        let actions = app.descendants(matching: .any)["Actions for Reader Workflow"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        openBookInfo(using: actions, in: app)
+
+        let addChapter = app.descendants(matching: .any)["chapter-add"]
+        XCTAssertTrue(addChapter.waitForExistence(timeout: 5))
+        addChapter.click()
+        enterChapterTitle("Opening", in: app)
+
+        let bookInfoScroll = app.scrollViews["book-info-scroll"]
+        let editor = app.textViews["chapter-markdown-editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        scroll(editor, intoViewUsing: bookInfoScroll)
+        editor.click()
+        editor.typeText("# Opening\n\nOpening chapter body")
+        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
+
+        for _ in 0..<10 where !addChapter.isHittable {
+            bookInfoScroll.swipeDown(velocity: .fast)
+        }
+        XCTAssertTrue(addChapter.isHittable)
+        addChapter.click()
+        enterChapterTitle("Ending", in: app)
+        scroll(editor, intoViewUsing: bookInfoScroll)
+        editor.click()
+        editor.typeText("# Ending\n\nEnding chapter body")
+        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
+
+        app.buttons["Close"].click()
+        let book = app.buttons["Reader Workflow, by Test Author"]
+        XCTAssertTrue(book.waitForExistence(timeout: 10))
+        book.click()
+
+        XCTAssertTrue(
+            app.staticTexts["Opening chapter body"].waitForExistence(timeout: 10),
+            "Opening a book should render its first chapter in the reader window."
+        )
+        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["reader-toggle-toc"].exists,
+            "The reader should rely on NavigationSplitView's single native sidebar control."
+        )
+
+        let nextChapter = app.descendants(matching: .any)["reader-next-chapter"]
+        XCTAssertTrue(nextChapter.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextChapter.isEnabled)
+        nextChapter.click()
+        XCTAssertTrue(app.staticTexts["Ending chapter body"].waitForExistence(timeout: 10))
+        XCTAssertFalse(nextChapter.isEnabled)
+
+        let previousChapter = app.descendants(matching: .any)["reader-previous-chapter"]
+        XCTAssertTrue(previousChapter.isEnabled)
+        previousChapter.click()
+        XCTAssertTrue(app.staticTexts["Opening chapter body"].waitForExistence(timeout: 10))
+
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
     }
 
     @MainActor

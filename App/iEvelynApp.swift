@@ -3,6 +3,7 @@ import SwiftUI
 @main
 struct iEvelynApp: App {
     @State private var applicationModel = LibraryApplicationModel()
+    @State private var readerSettings = ReaderSettingsStore()
 
     var body: some Scene {
         WindowGroup {
@@ -25,11 +26,21 @@ struct iEvelynApp: App {
             AboutView()
         }
         .windowResizability(.contentSize)
+
+        WindowGroup("Reader", id: SceneIdentifier.reader, for: ReaderWindowRoute.self) { route in
+            ReaderApplicationRootView(
+                applicationModel: applicationModel,
+                route: route.wrappedValue,
+                settings: readerSettings
+            )
+        }
+        .defaultSize(width: 1_080, height: 760)
     }
 }
 
-private enum SceneIdentifier {
+enum SceneIdentifier {
     static let about = "about"
+    static let reader = "reader"
 }
 
 private struct AboutCommandButton: View {
