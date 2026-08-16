@@ -1,13 +1,9 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct LibraryRootView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var model: LibraryViewModel
     @State private var editorConfiguration: BookEditorConfiguration?
-    @State private var bookInfoPresentation: BookInfoPresentation?
-    @State private var coverImportBookID: UUID?
-    @State private var isCoverImporterPresented = false
 
     init(repository: any LibraryRepository) {
         _model = State(initialValue: LibraryViewModel(repository: repository))
@@ -29,18 +25,12 @@ struct LibraryRootView: View {
                     editorConfiguration = .adding()
                 },
                 onOpenBook: { book in
-                    if book.isTrashed {
-                        showBookInfo(book)
-                    } else {
-                        openWindow(
-                            id: SceneIdentifier.reader,
-                            value: ReaderWindowRoute(bookID: book.id)
-                        )
-                        Task { await model.markOpened(book) }
-                    }
-                },
-                onShowBookInfo: { book in
-                    showBookInfo(book)
+                    guard !book.isTrashed else { return }
+                    openWindow(
+                        id: SceneIdentifier.reader,
+                        value: ReaderWindowRoute(bookID: book.id)
+                    )
+                    Task { await model.markOpened(book) }
                 },
                 onEditBook: { book in
                     editorConfiguration = .editing(book)
@@ -64,87 +54,11 @@ struct LibraryRootView: View {
                 onCancel: {
                     editorConfiguration = nil
                 },
-                onSave: { metadata in
-                    try await model.saveBook(id: configuration.bookID, metadata: metadata)
+                onSave: { submission in
+                    try await model.saveBook(id: configuration.bookID, submission: submission)
                     editorConfiguration = nil
                 }
             )
-        }
-        .sheet(item: $bookInfoPresentation) { presentation in
-            NavigationStack {
-                BookDetailView(
-                    book: model.book(id: presentation.id),
-                    chapterModel: presentation.chapterModel,
-                    chapterEditorModel: presentation.chapterEditorModel,
-                    chapterPreviewModel: presentation.chapterPreviewModel,
-                    isBusy: model.isPerformingOperation,
-                    loadCoverImage: model.loadCoverImage,
-                    onCoverLoadError: model.reportCoverLoadFailure,
-                    onEdit: { book in
-                        Task {
-                            guard await presentation.chapterEditorModel.flushPendingSave() else { return }
-                            presentEditorAfterClosingBookInfo(for: book)
-                        }
-                    },
-                    onToggleFavorite: { book in
-                        Task { await model.toggleFavorite(for: book) }
-                    },
-                    onMoveToTrash: { book in
-                        Task {
-                            guard await presentation.chapterEditorModel.flushPendingSave() else { return }
-                            bookInfoPresentation = nil
-                            await model.moveToTrash(book)
-                        }
-                    },
-                    onRestore: { book in
-                        bookInfoPresentation = nil
-                        Task { await model.restore(book) }
-                    },
-                    onDeletePermanently: { book in
-                        bookInfoPresentation = nil
-                        Task { await model.permanentlyDelete(book) }
-                    },
-                    onChooseCover: { book in
-                        coverImportBookID = book.id
-                        isCoverImporterPresented = true
-                    },
-                    onRemoveCover: { book in
-                        Task { await model.removeCover(from: book) }
-                    }
-                )
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Close") {
-                            Task {
-                                guard await presentation.chapterEditorModel.flushPendingSave() else { return }
-                                bookInfoPresentation = nil
-                            }
-                        }
-                        .keyboardShortcut(.cancelAction)
-                    }
-                }
-            }
-            .frame(minWidth: 580, idealWidth: 680, minHeight: 640, idealHeight: 760)
-            .interactiveDismissDisabled(presentation.chapterEditorModel.shouldPreventDismissal)
-        }
-        .fileImporter(
-            isPresented: $isCoverImporterPresented,
-            allowedContentTypes: [.jpeg, .png, .heic],
-            allowsMultipleSelection: false
-        ) { result in
-            let bookID = coverImportBookID
-            coverImportBookID = nil
-
-            switch result {
-            case .success(let urls):
-                guard let bookID, let sourceURL = urls.first else { return }
-                Task {
-                    await model.importCover(for: bookID, from: sourceURL)
-                }
-            case .failure(let error):
-                guard (error as NSError).code != NSUserCancelledError else { return }
-                model.reportCoverImporterFailure(error)
-            }
         }
         .alert(item: $model.alert) { alert in
             Alert(
@@ -155,29 +69,6 @@ struct LibraryRootView: View {
         }
     }
 
-    private func presentEditorAfterClosingBookInfo(for book: LibraryBook) {
-        bookInfoPresentation = nil
-        Task { @MainActor in
-            await Task.yield()
-            editorConfiguration = .editing(book)
-        }
-    }
-
-    private func showBookInfo(_ book: LibraryBook) {
-        bookInfoPresentation = BookInfoPresentation(
-            id: book.id,
-            chapterModel: model.makeChapterManagementModel(for: book.id),
-            chapterEditorModel: model.makeChapterEditorModel(),
-            chapterPreviewModel: model.makeChapterPreviewModel()
-        )
-    }
-}
-
-private struct BookInfoPresentation: Identifiable {
-    let id: LibraryBook.ID
-    let chapterModel: ChapterManagementViewModel
-    let chapterEditorModel: ChapterEditorViewModel
-    let chapterPreviewModel: ChapterPreviewViewModel
 }
 
 #if DEBUG

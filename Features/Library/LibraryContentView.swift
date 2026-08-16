@@ -4,7 +4,6 @@ struct LibraryContentView: View {
     @Bindable var model: LibraryViewModel
     let onAddBook: () -> Void
     let onOpenBook: (LibraryBook) -> Void
-    let onShowBookInfo: (LibraryBook) -> Void
     let onEditBook: (LibraryBook) -> Void
 
     @State private var permanentDeletionCandidate: LibraryBook?
@@ -196,8 +195,6 @@ struct LibraryContentView: View {
 
     private func handleBookAction(_ book: LibraryBook, _ action: BookManagementAction) {
         switch action {
-        case .showInfo:
-            onShowBookInfo(book)
         case .edit:
             onEditBook(book)
         case .toggleFavorite:

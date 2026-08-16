@@ -14,7 +14,7 @@ final class LibraryViewModel {
     private var isObserving = false
     private let coverCache = NSCache<NSUUID, NSData>()
     private let now: @Sendable () -> Date
-    private let markdownRenderer: any MarkdownRendering
+    private let bookContentImporter: any BookContentImporting
 
     var destination: LibraryDestination = .allBooks
 
@@ -29,12 +29,12 @@ final class LibraryViewModel {
         initialBooks: [LibraryBook] = [],
         referenceDate: Date = .now,
         now: @escaping @Sendable () -> Date = { .now },
-        markdownRenderer: any MarkdownRendering = MarkdownRenderingService()
+        bookContentImporter: any BookContentImporting = BookContentImporter()
     ) {
         self.repository = repository
         self.referenceDate = referenceDate
         self.now = now
-        self.markdownRenderer = markdownRenderer
+        self.bookContentImporter = bookContentImporter
         books = initialBooks
         isLoading = initialBooks.isEmpty
         coverCache.countLimit = 80
@@ -53,22 +53,6 @@ final class LibraryViewModel {
 
     func book(id: LibraryBook.ID) -> LibraryBook? {
         books.first { $0.id == id }
-    }
-
-    func makeChapterManagementModel(for bookID: UUID) -> ChapterManagementViewModel {
-        ChapterManagementViewModel(
-            bookID: bookID,
-            repository: repository,
-            now: now
-        )
-    }
-
-    func makeChapterEditorModel() -> ChapterEditorViewModel {
-        ChapterEditorViewModel(repository: repository, now: now)
-    }
-
-    func makeChapterPreviewModel() -> ChapterPreviewViewModel {
-        ChapterPreviewViewModel(repository: repository, renderer: markdownRenderer)
     }
 
     func loadCoverImage(for asset: Asset) async throws -> Data {
@@ -96,13 +80,51 @@ final class LibraryViewModel {
     }
 
     @discardableResult
-    func saveBook(id: UUID?, metadata: BookMetadataInput) async throws -> UUID {
+    func saveBook(id: UUID?, submission: BookEditorSubmission) async throws -> UUID {
+        let validatedMetadata = try submission.metadata.validated()
         let bookID: UUID
         if let id {
-            try await repository.updateBook(id: id, metadata: metadata, at: now())
+            let chapterUpdate: BookChapterUpdate
+            if let contentFileURL = submission.contentFileURL {
+                switch submission.contentMode {
+                case .replace:
+                    let content = try await bookContentImporter.loadCompleteBook(from: contentFileURL)
+                    try content.validateMetadata(validatedMetadata)
+                    chapterUpdate = .replace(content.chapters)
+                case .append:
+                    chapterUpdate = .append(
+                        try await bookContentImporter.loadAppendedChapters(from: contentFileURL)
+                    )
+                }
+            } else {
+                chapterUpdate = .unchanged
+            }
+            try await repository.updateBook(
+                id: id,
+                metadata: submission.metadata,
+                chapterUpdate: chapterUpdate,
+                coverUpdate: submission.coverUpdate,
+                at: now()
+            )
             bookID = id
         } else {
-            bookID = try await repository.createBook(metadata: metadata, at: now())
+            guard let contentFileURL = submission.contentFileURL else {
+                throw BookContentImportError.contentFileRequired
+            }
+            let content = try await bookContentImporter.loadCompleteBook(from: contentFileURL)
+            try content.validateMetadata(validatedMetadata)
+            let coverSourceURL: URL?
+            if case .replace(let sourceURL) = submission.coverUpdate {
+                coverSourceURL = sourceURL
+            } else {
+                coverSourceURL = nil
+            }
+            bookID = try await repository.createBook(
+                metadata: submission.metadata,
+                contentChapters: content.chapters,
+                coverSourceURL: coverSourceURL,
+                at: now()
+            )
         }
 
         destination = .allBooks
@@ -135,25 +157,6 @@ final class LibraryViewModel {
         await performOperation(errorTitle: "Could Not Delete Book") {
             try await repository.deleteBookPermanently(id: book.id)
         }
-    }
-
-    func importCover(for bookID: UUID, from sourceURL: URL) async {
-        await performOperation(errorTitle: "Could Not Import Cover") {
-            try await repository.importCover(bookID: bookID, from: sourceURL, at: now())
-        }
-    }
-
-    func removeCover(from book: LibraryBook) async {
-        await performOperation(errorTitle: "Could Not Remove Cover") {
-            try await repository.removeCover(bookID: book.id, at: now())
-        }
-    }
-
-    func reportCoverImporterFailure(_ error: Error) {
-        alert = LibraryViewModelAlert(
-            title: "Could Not Choose Cover",
-            message: error.localizedDescription
-        )
     }
 
     func markOpened(_ book: LibraryBook) async {

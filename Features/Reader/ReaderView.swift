@@ -143,7 +143,7 @@ struct ReaderView: View {
             ContentUnavailableView {
                 Label("No Chapters", systemImage: "text.book.closed")
             } description: {
-                Text("Add a chapter in Book Info before opening this book in the reader.")
+                Text("Use Edit Book to import or replace this book's content.")
             }
             .accessibilityIdentifier("reader-no-chapters")
         } else if let renderErrorMessage = model.renderErrorMessage {

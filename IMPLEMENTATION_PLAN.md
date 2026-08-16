@@ -1,6 +1,6 @@
 # iEvelyn Sequential Implementation Plan
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ## Purpose
 
@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 10 — Progress, bookmarks, and notes.
-- Implementation status: not started; Step 9 was accepted and committed on 2026-08-15.
+- Current milestone: Step 10 — Progress and bookmarks.
+- Implementation status: Step 9A was accepted on 2026-08-16; Step 10 is authorized but has not started.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -273,6 +273,8 @@ Make finding and opening a book the dominant main-window experience before addin
 - Confirm Add/Edit and Book Info contain no language, publisher, or publication-date fields while Added and Updated remain visible.
 - Verify keyboard navigation, search, sidebar destinations, light/dark appearance, and multiple windows.
 
+Historical checkpoint note: Step 9A later replaced Book Info with the unified Edit Book sheet. The reader-first browsing layout and per-book More menu remain current.
+
 ## Step 5 — Add cover and asset storage
 
 ### Goal
@@ -303,6 +305,8 @@ Safely import and display cover art while establishing the reusable asset subsys
 - Delete the original source image and confirm the app's copy still works.
 - Relaunch and verify persistence.
 - Permanently delete a disposable book and confirm its owned assets are cleaned up.
+
+Historical checkpoint note: Step 9A later moved cover import, replacement, and removal into the unified Add/Edit Book form and removed Book Info.
 
 ## Step 6 — Implement chapter management
 
@@ -421,7 +425,44 @@ Deliver the core Apple Books-like reading workflow.
 - Change typography and themes and verify persistence.
 - Test long chapters, images, external links, window resizing, and VoiceOver reading order.
 
-## Step 10 — Add progress, bookmarks, and notes
+## Step 9A — Whole-book import and update workflow correction
+
+### Goal
+
+Align book creation and maintenance with the actual whole-book Markdown workflow before reading anchors are added in Step 10.
+
+This corrective milestone supersedes the product-facing Book Info and individual chapter management/editor/preview UI delivered in Steps 4A–8. Their accepted history remains documented, while the reusable persistence, asset, and rendering foundations remain current.
+
+### Deliverables
+
+- Use one Add/Edit Book form for metadata, content-file selection, and optional cover changes. Default to a simple title/single-author/content/cover presentation; reveal subtitle, description, and ordered multi-author controls through Show More Options without clearing hidden values.
+- Require a UTF-8 `.md`, `.markdown`, or `.txt` content file when adding a book; accept a complete file with a level-1 title, one or more consecutive level-3 authors, and optional level-2 chapter headings.
+- Accept bare author headings as well as `Author:`, `Authors:`, `作者：`, and `作者:` prefixes. Validate complete-file title and ordered authors against the entered metadata before writing.
+- Split level-2 sections into ordered chapters; create one book-named chapter when no level-2 heading exists. Treat the H1/H3 preamble as import metadata rather than chapter Markdown.
+- On edit, preserve content when no file is selected, replace from a complete file by default, or append a chapter-only file that starts with a level-2 heading.
+- Commit metadata, authors, chapter replacement/append, and cover changes transactionally. Preserve existing chapter UUIDs during replacement when deterministic matching is possible.
+- Remove the separate Book Info popup and all individual chapter management/editing controls from the product UI. Expose book-level changes through an `Edit Book…` menu entry and the unified Add/Edit Book form.
+- Keep new cover artwork at 2:3 and exclude legacy 600x800 (3:4) covers from Steps 14–15; those covers will be recreated.
+
+### Automated checks
+
+- Parser tests cover complete files, English/Chinese/bare author headings, one-chapter books, chapter splitting, fenced headings, append validation, and metadata mismatch.
+- Repository tests cover atomic create, deterministic replace, append ordering, stable chapter identities, and rollback on invalid input.
+- UI tests create books from whole-book fixtures, verify the simple/expanded form modes preserve advanced metadata, confirm chapter structure through the reader, and verify the More menu exposes `Edit Book…` without a Book Info action or individual chapter controls.
+- Debug and Release builds plus the complete unit/integration and UI suite pass.
+
+### Manual checkpoint
+
+- Add `1175-0.txt` with title `毫末生` and author `蛋伤`; confirm its three chapters appear in order and open in the reader.
+- Edit that book, choose Append, select `1175-1.txt`, and confirm its 77 chapters are added after the original three.
+- Edit metadata without selecting a content file and confirm all 80 chapters remain unchanged.
+- Try Replace with mismatched entered title or authors and confirm the app rejects it without changing the book.
+- Add a chapterless complete file and confirm it becomes one chapter; try an append file that does not start with `##` and confirm it is rejected.
+- Confirm Add/Edit Book opens in simple mode; use Show More Options to reveal subtitle, description, and multi-author controls, then hide them and verify their values are preserved.
+- Choose, replace, and remove a 2:3 cover through Add/Edit Book; confirm the More menu says `Edit Book…` and has no Book Info action.
+- Quit and relaunch, then confirm metadata, cover, chapter order, and reader behavior persist without individual chapter management/editing controls.
+
+## Step 10 — Add progress and bookmarks
 
 ### Goal
 
@@ -429,12 +470,12 @@ Restore reading sessions reliably even when content changes.
 
 ### Deliverables
 
-- Track last-opened book, chapter, read time, and overall progress for Currently Reading.
+- Track the last-opened book, chapter, last-read time, and overall progress for Currently Reading.
 - Persist the layered semantic anchor described in `PROJECT_CONTEXT.md`.
 - Automatically restore the last reading location.
-- Add manual bookmarks with labels and optional notes if included in the accepted scope.
-- Add a bookmark list with direct navigation and delete/edit actions.
-- Implement quote/context reattachment and graceful fallback after source edits.
+- Add manual bookmarks with optional labels; bookmark notes are deferred and have no product UI in this scope.
+- Add a bookmark list with direct navigation, rename, and delete actions.
+- Implement quote/context reattachment and graceful fallback after whole-book Replace operations; Append must preserve existing anchors.
 - Define behavior when a bookmarked chapter or block is deleted.
 
 ### Automated checks
@@ -444,9 +485,10 @@ Restore reading sessions reliably even when content changes.
 ### Manual checkpoint
 
 - Stop mid-chapter, quit, relaunch, and verify restoration.
-- Add several bookmarks and navigate from the list.
-- Edit content before a saved location and verify reattachment.
-- Remove the exact bookmarked block and verify graceful fallback.
+- Add several optionally labeled bookmarks, rename one, and navigate from the list.
+- Replace the book from a complete content file that inserts content before a saved location and verify reattachment.
+- Replace the book again after removing the exact bookmarked block and verify graceful fallback.
+- Append chapters and confirm anchors in existing chapters remain unchanged.
 - Confirm Currently Reading order and progress update correctly.
 
 ## Step 11 — Add full-text search and organization
@@ -457,7 +499,7 @@ Make a substantial library fast to find and organize.
 
 ### Deliverables
 
-- Add SQLite FTS5 indexing for book title/subtitle, authors, chapter titles/content, tags, and bookmark notes if present.
+- Add SQLite FTS5 indexing for book title/subtitle, authors, chapter titles/content, and tags. Bookmark notes remain outside the current product scope.
 - Keep the index synchronized transactionally or through tested rebuild logic.
 - Add result snippets, scoped searches, and direct navigation to matching chapters/locations.
 - Add author and tag management with counts and filters.
@@ -474,7 +516,7 @@ Make a substantial library fast to find and organize.
 - Search title, author, tag, chapter title, and chapter body terms.
 - Test Unicode and punctuation-heavy queries.
 - Jump from a result to the matching chapter/location.
-- Edit and delete content and confirm results update.
+- Replace or append whole-book Markdown content and confirm results update.
 - Verify trashed books remain excluded except in a deliberately scoped Trash search.
 
 ## Step 12 — Implement EPUB 3 export
@@ -503,7 +545,7 @@ Generate interoperable EPUB files from iEvelyn books.
 
 - Export one-chapter and multi-chapter books, including a book with images.
 - Open each in Apple Books and inspect cover, metadata, table of contents, formatting, images, and navigation.
-- Edit a chapter, re-export, and confirm the change.
+- Replace or append whole-book Markdown content, re-export, and confirm the change.
 - Run the documented EPUB validation and review all warnings/errors.
 
 ## Step 13 — Add backup, restore, and interchange
@@ -520,7 +562,7 @@ Make the local library portable and recoverable before legacy migration is attem
 - Restore by validating and constructing a temporary library before an atomic swap.
 - Preserve the current library unchanged after a failed validation or restore.
 - Add a human-readable integrity-check and repair report.
-- Add optional per-book Markdown export for simple source portability.
+- Add optional per-book Markdown export that reconstructs the complete Step 9A whole-book format for simple source portability.
 
 ### Automated checks
 
@@ -544,7 +586,7 @@ Extract useful Evelyn.NET data safely into a neutral import bundle without modif
 
 - Create `/Users/cysun/git/EvelynMigration` as a separate .NET console project.
 - Use a dedicated read-only PostgreSQL connection and fail closed if required configuration is missing.
-- Export book metadata, ordered canonical chapter Markdown, cover images, and referenced content assets.
+- Export book metadata, ordered canonical chapter Markdown, and referenced in-book content assets. Report legacy covers as intentionally skipped because iEvelyn covers will be recreated at 2:3.
 - Optionally export legacy bookmark/progress data only after assessing its reliability.
 - Exclude users, password hashes, authorization data, web configuration, generated HTML, thumbnails that can be regenerated, and generated EPUB output unless a reviewed exception is necessary.
 - Write a documented, versioned neutral bundle consumable by iEvelyn.
@@ -561,7 +603,7 @@ Extract useful Evelyn.NET data safely into a neutral import bundle without modif
 
 - Run dry-run and compare source counts with the report.
 - Export a representative subset if supported, then the full library.
-- Inspect several metadata records, Markdown chapters, covers, assets, warnings, and skipped items.
+- Inspect several metadata records, Markdown chapters, assets, warnings, and skipped items, including the intentional legacy-cover exclusions.
 - Run export again and verify deterministic results where expected.
 - Confirm independently that the source database remains unchanged.
 
@@ -577,7 +619,7 @@ Migrate the verified neutral bundle into the native library with validation and 
 - Provide a dry-run summary of additions, skips, warnings, and conflicts.
 - Map legacy IDs to new UUIDs without making legacy identifiers domain keys.
 - Build the imported SQLite database in a temporary location and copy assets atomically.
-- Rebuild derived reader output, thumbnails, and search indexes locally.
+- Rebuild derived reader output and search indexes locally. Do not generate thumbnails for intentionally excluded legacy covers.
 - Detect likely duplicate books and require an explicit strategy rather than silently merging.
 - Commit the imported library only after full validation.
 - Produce a permanent reconciliation report and retain rollback safety.
@@ -592,7 +634,7 @@ Migrate the verified neutral bundle into the native library with validation and 
 
 - Review the dry-run summary before import.
 - Compare final counts and warnings with the exporter report.
-- Inspect representative books, multi-author metadata, chapter order, Unicode, covers, and images.
+- Inspect representative books, multi-author metadata, chapter order, Unicode, recreated 2:3 covers where supplied, and in-book images.
 - Search imported content and restore a reading location if migrated.
 - Export representative imported books to EPUB and open them in Apple Books.
 - Repeat import against a disposable library and test corrupt-bundle rollback.
@@ -626,7 +668,7 @@ Turn the functionally complete application into a dependable signed macOS releas
 ### Manual checkpoint
 
 - Exercise a clean install and first launch.
-- Create a book, add a cover and chapters, edit/read/search/bookmark it, export EPUB, back up, and restore.
+- Create a book from whole-book Markdown, add a cover, replace and append content, read/search/bookmark it, export EPUB, back up, and restore.
 - Test a large representative library.
 - Test keyboard-only and VoiceOver workflows.
 - Test light/dark appearance, multiple windows, full screen, restart, and recovery messaging.
@@ -651,7 +693,8 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 7 | Markdown chapter editor | Accepted | Native Markdown source editing, ordered debounced autosave with optimistic conflict recovery, UTF-8 Markdown/plain-text import, undo/find/edit commands, live counts, and the Step 8 preview placeholder are implemented; Debug/Release builds and all 54 tests (47 unit/integration and seven UI) passed; manual checkpoint accepted on 2026-08-15. |
 | 8 | Markdown rendering engine | Accepted | `swift-markdown` rendering, separate safe reader HTML and EPUB XHTML output, stable anchors, repository-validated assets, bounded derived caching, and live WebKit preview are implemented; the WebKit-required client-network entitlement is paired with restrictive content-security and navigation policies. Debug/Release builds and all 60 tests (53 unit/integration and seven UI) passed; the manual checkpoint was accepted on 2026-08-15. |
 | 9 | Reading experience | Accepted | Dedicated multi-window reading, continuous WebKit chapter rendering, single native table-of-contents control, boundary navigation, book-wide find, responsive persistent appearance controls, native full screen, safe external links, and quiet controls are implemented. Debug/Release builds and all 70 tests (62 unit/integration and eight UI) passed after the sidebar and resizing corrections; the manual checkpoint was accepted on 2026-08-15. |
-| 10 | Progress, bookmarks, and notes | Not started | |
+| 9A | Whole-book import and update workflow correction | Accepted | Unified Add/Edit Book defaults to a simple title/single-author/content/cover presentation with preserved optional metadata behind Show More Options; complete/replace/append parsing, transactional book-content changes, and removal of Book Info plus all individual chapter controls are implemented; the More menu uses `Edit Book…`; one routed file importer keeps the content and cover pickers independent; legacy 3:4 covers are explicitly excluded from migration. Debug/Release builds and all 72 tests (64 unit/integration and eight UI) passed; the manual checkpoint was accepted on 2026-08-16. |
+| 10 | Progress and bookmarks | Not started | Bookmark notes are deferred; the existing nullable database field remains reserved without product UI. |
 | 11 | Full-text search and organization | Not started | |
 | 12 | EPUB 3 export | Not started | |
 | 13 | Backup, restore, and interchange | Not started | |

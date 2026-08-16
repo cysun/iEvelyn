@@ -1,6 +1,6 @@
 # iEvelyn Project Context
 
-Last updated: 2026-08-15
+Last updated: 2026-08-16
 
 ## Purpose of this document
 
@@ -8,7 +8,7 @@ This document preserves the product vision, architecture decisions, data strateg
 
 ## Product vision
 
-iEvelyn is a completely new, native macOS application for managing, authoring, and reading a personal ebook library. The desired experience is closer to Apple Books than to an administrative database application, while also supporting author-focused capabilities such as adding and editing chapters and exporting EPUB files.
+iEvelyn is a completely new, native macOS application for managing, authoring, and reading a personal ebook library. The desired experience is closer to Apple Books than to an administrative database application, while also supporting author-focused capabilities such as importing structured book content and exporting EPUB files.
 
 The existing Evelyn.NET application is a source of legacy book data only. Its web UI, ASP.NET controllers, authentication model, browser-based reader, database schema, and implementation patterns are not design constraints for iEvelyn.
 
@@ -17,7 +17,7 @@ The existing Evelyn.NET application is a source of legacy book data only. Its we
 - Deliver a polished, modern, macOS-only application using native conventions.
 - Make the library pleasant to browse in grid and list forms.
 - Provide a focused reading experience with themes, typography controls, navigation, search, progress, and bookmarks.
-- Let the user create books, manage metadata and covers, add and reorder chapters, and edit chapter source in Markdown.
+- Let the user create and update books from structured Markdown content files and manage metadata and covers through one book-level workflow.
 - Generate standards-oriented EPUB 3 files from the same canonical content used by the app.
 - Store the local library in an explicit, inspectable SQLite database with externally stored assets.
 - Migrate useful book data from Evelyn.NET without coupling the new application to PostgreSQL or the old schema at runtime.
@@ -39,11 +39,11 @@ The existing Evelyn.NET application is a source of legacy book data only. Its we
 
 ### Library
 
-The main window uses a native sidebar and a full browsing area rather than a persistent metadata column. Expected library sections include All Books, Currently Reading, Recently Added, Favorites, Authors, Tags, and Trash. Books can be displayed as cover grids or compact lists, searched, filtered, and sorted. The cover grid uses artwork for visual browsing; the compact list omits tiny cover thumbnails and prioritizes title, author, library date, and progress. Activating a book opens the reader; information and management actions belong to that book's compact More menu and on-demand sheets rather than a selection-dependent toolbar. The interface must have thoughtful empty, loading, and error states and work well in light and dark appearances.
+The main window uses a native sidebar and a full browsing area rather than a persistent metadata column. Expected library sections include All Books, Currently Reading, Recently Added, Favorites, Authors, Tags, and Trash. Books can be displayed as cover grids or compact lists, searched, filtered, and sorted. The cover grid uses artwork for visual browsing; the compact list omits tiny cover thumbnails and prioritizes title, author, library date, and progress. Activating a book opens the reader; management actions belong to that book's compact More menu, with book changes presented in the unified Edit Book sheet rather than a separate information popup or selection-dependent toolbar. The interface must have thoughtful empty, loading, and error states and work well in light and dark appearances.
 
 ### Book management and authoring
 
-A book detail experience exposes metadata, cover art, chapter structure, and relevant actions. Users can create and edit books, add or import chapters, reorder them, and edit canonical Markdown with autosave, undo, find/replace, and preview. Destructive actions should be recoverable wherever practical.
+Adding a book uses one form for metadata, a required whole-book Markdown content file, and an optional cover. Editing uses the same form: omitting a content file preserves existing chapters, Replace consumes another complete book file, and Append adds chapter-only sections after the current last chapter. The form opens in a simple mode with title, one author, content, and cover; Show More Options reveals subtitle, description, and ordered multi-author controls without discarding values when it is turned off. There is no separate Book Info popup. Individual chapter management and editing—including adding, renaming, duplicating, deleting, reordering, importing, or directly editing a chapter—is not part of the current product workflow. Imported chapter structure remains visible through the reader's table of contents.
 
 ### Reading
 
@@ -83,6 +83,9 @@ SQLite is preferred over an opaque persistence layer because the library format 
 ### Content model
 
 - Markdown is the canonical editable representation of a chapter.
+- Whole-book import accepts UTF-8 `.md`, `.markdown`, and `.txt` files. A complete file begins with a level-1 title followed by one or more consecutive level-3 author headings. Author text may be bare or use `Author:`, `Authors:`, `作者：`, or `作者:`. Level-2 headings define ordered chapters; a file without level-2 headings becomes one chapter named for the book.
+- The complete-file H1/H3 preamble is validated against entered metadata and is not stored in a chapter body. Append files contain only one or more level-2 chapter sections and must start with the first chapter heading after optional blank lines.
+- Add, complete replacement, append, metadata changes, and cover changes use repository transactions so validation or persistence failure cannot leave a partially updated book. Complete replacement preserves existing chapter UUIDs when deterministic matching is possible, protecting future reading anchors.
 - Reader HTML and EPUB XHTML are derived representations generated from Markdown.
 - Derived markup may be cached using a source hash and renderer-version key, but it must be safe to discard and rebuild.
 - The accepted Markdown dialect and raw-HTML policy must be documented and covered by rendering tests.
@@ -105,6 +108,7 @@ Keeping both Markdown and HTML as independently editable database fields is expl
 
 - Store asset metadata and ownership in SQLite.
 - Store cover images and chapter assets as files under the application's sandboxed Application Support directory.
+- Use a 2:3 portrait aspect ratio for new cover artwork. Legacy 600x800 (3:4) cover files will not be migrated; replacement covers will be recreated for iEvelyn.
 - Address assets by stable UUIDs, never by user-supplied file names alone.
 - Copy imported files atomically, validate supported media types, and generate disposable thumbnails or render caches as needed.
 - Rendering should use an application-specific asset URL mechanism such as `book-asset://` instead of exposing arbitrary local paths.
@@ -138,7 +142,7 @@ Step 3 finalized the initial normalized schema with these concepts:
 | `Tag` | User-managed organization label |
 | `BookTag` | Many-to-many relationship between books and tags |
 | `ReadingProgress` | Last location and read timestamp for a book |
-| `Bookmark` | Named or unnamed semantic reading anchor, optional note, timestamps |
+| `Bookmark` | Named or unnamed semantic reading anchor and timestamps; the nullable note field is reserved without current product UI |
 
 Use UUIDs for new domain identities. Store ordering explicitly. Use foreign keys and transactions for multi-record changes such as chapter reordering or permanent book deletion.
 
@@ -151,6 +155,7 @@ Initial schema decisions:
 - Model a book's cover through its unique owned `Asset` whose purpose is `cover`, avoiding a circular book/asset foreign key.
 - Cascade permanent book deletion through owned joins, chapters, assets, progress, and bookmarks. Restrict deletion of authors or tags while linked to a book.
 - Set chapter references on assets, reading progress, and bookmarks to null when a chapter is deleted, preserving book-level ownership and anchor fallback. Triggers reject cross-book chapter references.
+- Keep the existing nullable bookmark note column reserved for compatibility, but do not expose bookmark notes in the current product. Step 10 bookmarks have optional labels only.
 - Keep `trashedAt` as the book soft-deletion boundary; Step 4 supplies the user workflow.
 
 ## Reading-location strategy
@@ -206,7 +211,7 @@ Migration rules:
 - Prefer legacy Markdown as chapter source.
 - Treat legacy HTML as derived data and do not normally import it.
 - If Markdown is missing or demonstrably unusable, any HTML-to-Markdown recovery must be an explicit, reported exception.
-- Import useful book metadata, ordered chapters, covers, and referenced content assets.
+- Import useful book metadata, ordered chapters, and referenced in-book content assets. Do not export or import legacy 600x800 cover images; covers will be recreated at iEvelyn's 2:3 ratio.
 - Decide separately whether legacy bookmarks/progress are reliable enough to migrate; do not silently pretend paragraph indices are semantic anchors.
 - Exclude users, password hashes, cookies, authorization data, server configuration, and generated legacy HTML/EPUB output.
 - Produce counts, checksums, warnings, and a skipped-item report so the user can reconcile the migration.
@@ -227,7 +232,7 @@ Migration rules:
 
 ## Current project state
 
-As of 2026-08-15:
+As of 2026-08-16:
 
 - `/Users/cysun/git/iEvelyn` is a Git repository on `main`, tracking `origin/main`; Step 1 was accepted on 2026-08-14.
 - The native SwiftUI project, app target, Swift Testing target, and XCTest UI-test target exist, and the Step 1 manual checkpoint passed.
@@ -235,21 +240,23 @@ As of 2026-08-15:
 - Step 3 was accepted on 2026-08-14. It replaced the sample-data seam with UUID domain values, the normalized GRDB schema, ordered migrations, repository access, live observations, and database-backed library projections.
 - Step 4 was accepted on 2026-08-15. It adds native book creation, details, and metadata editing; ordered author persistence; validation; favorite and recently-opened state; persisted search and sorting; and the complete Trash, restore, and explicit permanent-delete workflow.
 - Step 4 reuses the normalized Step 3 schema without a new migration or dependency. That schema's owned `Asset` records and unique cover constraint also support Step 5 without another migration.
-- Step 4A was accepted on 2026-08-15. The reader-first navigation correction keeps the sidebar and gives the remaining main-window space to grid/list browsing. Book activation uses the future reader seam, while every item owns its More menu and book information/management sheets. Until Step 9 supplies the reader, activation presents an explicit unavailable message and does not update `lastOpenedAt`.
-- Step 4A also removes language, publisher, and publication-date metadata end to end through the ordered v2 migration. Added and Updated remain part of Book Info.
+- Step 4A was accepted on 2026-08-15. The reader-first navigation correction keeps the sidebar and gives the remaining main-window space to grid/list browsing. Book activation uses the future reader seam, while every item owns its More menu. Its original Book Info sheet was later removed during Step 9A. Until Step 9 supplied the reader, activation presented an explicit unavailable message and did not update `lastOpenedAt`.
+- Step 4A also removed language, publisher, and publication-date metadata end to end through the ordered v2 migration.
 - Step 4A keeps cover artwork in grid and detail contexts but omits it from the compact list, where the reduced images were not legible enough to aid browsing.
-- Step 5 was accepted on 2026-08-15. It imports readable JPEG, PNG, and HEIC covers through the SwiftUI file importer; copies authoritative originals atomically into UUID-addressed per-book storage; persists checksums, byte counts, dimensions, media types, and relative paths; and renders disposable PNG thumbnails in the grid and Book Info while retaining generated artwork as fallback and keeping the compact list text-led. Thumbnail data loads lazily for visible cover views through a bounded in-memory cache so large libraries do not eagerly retain every cover.
+- Step 5 was accepted on 2026-08-15. It imports readable JPEG, PNG, and HEIC covers through the SwiftUI file importer; copies authoritative originals atomically into UUID-addressed per-book storage; persists checksums, byte counts, dimensions, media types, and relative paths; and renders disposable PNG thumbnails in the grid while retaining generated artwork as fallback and keeping the compact list text-led. Thumbnail data loads lazily for visible cover views through a bounded in-memory cache so large libraries do not eagerly retain every cover.
 - Step 5 also defines the database-backed `book-asset://<book-uuid>/<asset-uuid>` resolution boundary, repairs orphaned files on launch, reports missing or failed cleanup, and removes owned storage after cover replacement/removal or permanent book deletion. It adds no third-party dependency and requires no schema change.
 - Step 5 isolates one narrow AppKit bridge in `BookCoverArtwork`: `NSImage` decodes generated thumbnail data because SwiftUI does not provide a data-backed macOS `Image` initializer. File selection, layout, state, and controls remain SwiftUI.
-- Step 6 was accepted on 2026-08-15. Book Info now observes and manages each book's ordered chapters with add, rename, duplicate, delete, active-session undo, selection, drag-and-drop reordering, accessible move controls, empty/read-only states, and live chapter and word-count summaries. Chapter identity remains independent of order, duplicate titles are allowed, and every multi-record reorder or delete/restore operation is transactional.
-- Step 6 reuses the Step 3 chapter schema without a migration or dependency. Deletion undo restores the same chapter UUID, Markdown, order, and chapter-linked asset/progress/bookmark references while the Book Info session remains open; canonical Markdown editing remains explicitly deferred to Step 7.
-- Step 7 was accepted on 2026-08-15. Book Info now provides a native monospaced Markdown source editor with selection, standard edit commands, undo/redo, find/replace, UTF-8 Markdown/plain-text import, Unicode-aware word and character counts, and a split-pane placeholder that keeps rendering explicitly deferred to Step 8.
+- Step 6 was accepted on 2026-08-15 with individual chapter-management controls. Step 9A later removed those product controls in favor of whole-book import, replacement, and append; stable chapter identities and the transactional persistence foundations remain.
+- Step 6 reused the Step 3 chapter schema without a migration or dependency.
+- Step 7 was accepted on 2026-08-15 with a direct Markdown chapter editor. Step 9A later removed that product UI because content changes now occur at the whole-book level.
 - Step 7 keeps Markdown canonical and saves through an ordered, debounced repository boundary with optimistic render-revision checks. Chapter switching and dismissal flush pending edits, newer edits cannot be overwritten by an older save, conflicts preserve the local draft until the user reloads stored content or explicitly overwrites it, and recoverable failures expose retry/revert actions. Metrics are computed off the main actor. The step adds no schema migration or dependency.
 - Step 8 was accepted on 2026-08-15. It replaces the editor placeholder with a debounced live preview built on the macOS 26 SwiftUI WebKit integration. JavaScript is disabled, website data is nonpersistent, top-level navigation is restricted to the generated document, and book assets are loaded only after repository ownership validation. The sandboxed WebKit content process requires the outgoing-connections client entitlement even for the generated local document; iEvelyn does not initiate remote fetches, and the renderer's content-security policy and navigation policy continue to prevent book content from turning that entitlement into network access.
 - Step 8 adds one controlled renderer with separate reader HTML and EPUB XHTML modes, deterministic block anchors, accessible light/dark CSS, explicit warnings for unsafe or unsupported input, and fixture coverage for GFM markup, Unicode, assets, malformed input, raw HTML, output structure, stable IDs, cache invalidation, and cancellation. It adds no schema migration.
 - Step 9 was accepted on 2026-08-15. Book activation now opens a dedicated typed reader window. Each reader window owns its selected chapter, table-of-contents visibility, find presentation, rendering state, and errors, while typography and theme preferences are deliberately shared through `UserDefaults` so changes persist across reader windows and launches. The reader relies on the native split-view sidebar control, and Page Width is a proportional setting with a generous readable-line cap so the text column grows as the window widens without becoming unbounded on very large displays.
 - Step 9 uses continuous vertical chapter scrolling. The optional CSS column/paginated mode was evaluated and deferred because it would complicate resizing, keyboard/trackpad behavior, and VoiceOver reading order without being required for the core reader. Native macOS full screen and vertical WebView scrolling supply predictable window and trackpad behavior.
 - Step 9 Find in Book scans the already-loaded ordered chapter titles and canonical Markdown locally, produces Unicode- and diacritic-insensitive chapter results with snippets and counts, and jumps directly to the selected chapter. This is an explicit small-library seam; Step 11 will replace broad library/content search with transactional FTS5 indexing and location-aware results.
+- Step 9A was accepted on 2026-08-16. It corrects the authoring workflow before Step 10: Add Book now requires a whole-book Markdown/text file and optionally accepts a cover; Edit Book can preserve, replace, or append content and also owns cover changes. The unified form defaults to its simple title/single-author/content/cover presentation, with subtitle, description, and ordered multi-author controls behind Show More Options. Complete files support English, Chinese, or bare level-3 author headings, while append files contain level-2 chapter sections only. The separate Book Info sheet and all product-facing individual chapter management/editing controls were removed. The change reuses the existing schema and dependencies.
+- Step 10 is authorized with progress restoration and optionally labeled bookmarks. Bookmark notes are deferred; the nullable schema field remains reserved rather than requiring a destructive migration.
 - Reader markup remains generated by the Step 8 renderer with JavaScript disabled and nonpersistent WebKit data. Only WebKit's exact internal `about:blank` document URL (plus fragments) is trusted for top-level navigation; explicit `http`, `https`, and `mailto` link activations are routed to the system outside the book context, and other navigation is blocked.
 - The production database resolves to `iEvelyn/Library.sqlite` under the app sandbox's Application Support directory and uses foreign keys plus WAL. Unit/integration tests use in-memory or temporary databases, and UI tests explicitly select an in-memory launch mode.
 - Sample seeding and library reset exist only in Debug builds. Release builds contain neither the commands nor the sample provider.
@@ -264,7 +271,6 @@ Resolve these at the named milestone or when the user chooses to decide sooner:
 
 - Whether a future release should add an accessible paginated/column alternative to the continuous reader.
 - Required EPUB language and any export-only publication metadata must be supplied by exporter policy or at export time rather than restored as stored book fields: Step 12.
-- Notes attached to bookmarks in the initial release: Step 10.
 - Whether old bookmarks and reading progress are reliable enough to migrate: Step 14.
 - App icon, signing identity, distribution path, and notarization details: Step 16.
 

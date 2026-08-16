@@ -1,7 +1,6 @@
 import SwiftUI
 
 enum BookManagementAction {
-    case showInfo
     case edit
     case toggleFavorite
     case moveToTrash
@@ -14,13 +13,7 @@ struct BookManagementCommands: View {
     let onAction: (BookManagementAction) -> Void
 
     var body: some View {
-        Button("Book Info…", systemImage: "info.circle") {
-            onAction(.showInfo)
-        }
-
         if book.isTrashed {
-            Divider()
-
             Button("Restore", systemImage: "arrow.uturn.backward") {
                 onAction(.restore)
             }
@@ -29,7 +22,7 @@ struct BookManagementCommands: View {
                 onAction(.requestPermanentDeletion)
             }
         } else {
-            Button("Edit Metadata…", systemImage: "pencil") {
+            Button("Edit Book…", systemImage: "pencil") {
                 onAction(.edit)
             }
 

@@ -55,16 +55,20 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(actions.waitForExistence(timeout: 5))
         XCTAssertTrue(actions.isEnabled)
         actions.click()
-        app.menuItems["Book Info…"].click()
-
-        XCTAssertTrue(app.buttons["Edit"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Octavia E. Butler"].exists)
-        XCTAssertTrue(
-            app.descendants(matching: .any)["book-choose-cover"].exists,
-            "Book Info should expose cover management without occupying the main library canvas."
+        XCTAssertFalse(
+            app.menuItems["Book Info…"].exists,
+            "The book actions menu should no longer expose a separate Book Info sheet."
         )
-        XCTAssertFalse(app.descendants(matching: .any)["book-remove-cover"].exists)
-        app.buttons["Close"].click()
+        let editBook = app.menuItems["Edit Book…"]
+        XCTAssertTrue(editBook.waitForExistence(timeout: 5))
+        editBook.click()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["book-editor-choose-cover"].waitForExistence(timeout: 5),
+            "The unified Edit Book form should own cover changes."
+        )
+        XCTAssertTrue(app.descendants(matching: .any)["book-editor-content-mode"].exists)
+        app.buttons["Cancel"].click()
         XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
     }
 
@@ -138,7 +142,17 @@ final class iEvelynUITests: XCTestCase {
 
     @MainActor
     func testAddEditFavoriteTrashRestoreAndPermanentDeleteWorkflow() throws {
-        let app = launchApplication(seedSampleLibrary: false)
+        let app = launchApplication(
+            seedSampleLibrary: false,
+            bookContent: """
+            # Workflow Book
+            ### First Author
+            ### Second Author
+            ## Opening
+
+            Workflow content.
+            """
+        )
 
         let addBook = app.descendants(matching: .any)["library-add-book"]
         XCTAssertTrue(addBook.waitForExistence(timeout: 10))
@@ -149,6 +163,12 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["book-editor-language"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["book-editor-publisher"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["book-editor-publication-date-toggle"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["book-editor-content-file"].exists)
+        let showMoreOptions = app.descendants(matching: .any)["book-editor-show-more-options"]
+        XCTAssertTrue(showMoreOptions.exists)
+        XCTAssertFalse(app.textFields["book-editor-subtitle"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["book-editor-add-author"].exists)
+        XCTAssertFalse(app.textViews["book-editor-summary"].exists)
         save.click()
         XCTAssertTrue(
             app.descendants(matching: .any)["book-editor-error"].waitForExistence(timeout: 5),
@@ -164,11 +184,20 @@ final class iEvelynUITests: XCTestCase {
         firstAuthor.click()
         firstAuthor.typeText("First Author")
 
+        showMoreOptions.click()
+        let subtitle = app.textFields["book-editor-subtitle"]
+        XCTAssertTrue(subtitle.waitForExistence(timeout: 5))
+        subtitle.click()
+        subtitle.typeText("Expanded Subtitle")
+        XCTAssertTrue(app.textViews["book-editor-summary"].exists)
         app.descendants(matching: .any)["book-editor-add-author"].click()
         let secondAuthor = app.textFields["book-editor-author-1"]
         XCTAssertTrue(secondAuthor.waitForExistence(timeout: 5))
         secondAuthor.click()
         secondAuthor.typeText("Second Author")
+        showMoreOptions.click()
+        XCTAssertFalse(secondAuthor.exists)
+        XCTAssertFalse(app.textFields["book-editor-subtitle"].exists)
         save.click()
 
         let createdBook = app.buttons["Workflow Book, by First Author, Second Author"]
@@ -177,20 +206,24 @@ final class iEvelynUITests: XCTestCase {
         let bookActions = app.descendants(matching: .any)["Actions for Workflow Book"]
         XCTAssertTrue(bookActions.waitForExistence(timeout: 5))
         bookActions.click()
-        app.menuItems["Book Info…"].click()
-
-        let favorite = app.descendants(matching: .any)["book-toggle-favorite"]
-        XCTAssertTrue(favorite.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Library Details"].exists)
-        XCTAssertFalse(app.staticTexts["Publication Details"].exists)
-        XCTAssertTrue(app.staticTexts["Added"].exists)
-        XCTAssertTrue(app.staticTexts["Updated"].exists)
-        favorite.click()
-        XCTAssertTrue(app.buttons["Unfavorite"].waitForExistence(timeout: 5))
-
-        app.descendants(matching: .any)["book-edit"].click()
+        app.menuItems["Add to Favorites"].click()
+        bookActions.click()
+        XCTAssertTrue(app.menuItems["Remove from Favorites"].waitForExistence(timeout: 5))
+        let editBook = app.menuItems["Edit Book…"]
+        XCTAssertTrue(editBook.waitForExistence(timeout: 5))
+        editBook.click()
         let editedTitle = app.textFields["book-editor-title"]
         XCTAssertTrue(editedTitle.waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.textFields["book-editor-author-1"].exists,
+            "Edit Book should also open in the simple mode without discarding additional authors."
+        )
+        showMoreOptions.click()
+        let reopenedSubtitle = app.textFields["book-editor-subtitle"]
+        XCTAssertTrue(reopenedSubtitle.waitForExistence(timeout: 5))
+        XCTAssertEqual(reopenedSubtitle.value as? String, "Expanded Subtitle")
+        XCTAssertEqual(app.textFields["book-editor-author-1"].value as? String, "Second Author")
+        showMoreOptions.click()
         editedTitle.click()
         editedTitle.typeKey("a", modifierFlags: .command)
         editedTitle.typeText("Edited Workflow Book")
@@ -229,8 +262,51 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
-    func testChapterManagementAddSelectReorderAndPersist() throws {
+    func testAddBookContentAndCoverButtonsOpenFilePickers() throws {
         let app = launchApplication(seedSampleLibrary: false)
+
+        app.descendants(matching: .any)["library-add-book"].click()
+
+        let contentButton = app.descendants(matching: .any)["book-editor-choose-content"]
+        XCTAssertTrue(contentButton.waitForExistence(timeout: 5))
+        contentButton.click()
+
+        let contentPicker = app.sheets.element(boundBy: 1)
+        XCTAssertTrue(
+            contentPicker.waitForExistence(timeout: 5),
+            "Choose Content File should present the system file picker."
+        )
+        contentPicker.buttons["Cancel"].click()
+        XCTAssertTrue(contentPicker.waitForNonExistence(timeout: 5))
+
+        let coverButton = app.descendants(matching: .any)["book-editor-choose-cover"]
+        XCTAssertTrue(coverButton.waitForExistence(timeout: 5))
+        coverButton.click()
+
+        let coverPicker = app.sheets.element(boundBy: 1)
+        XCTAssertTrue(
+            coverPicker.waitForExistence(timeout: 5),
+            "Choose Cover should present the system file picker."
+        )
+        coverPicker.buttons["Cancel"].click()
+        XCTAssertTrue(coverPicker.waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testImportedChapterStructurePersistsWithoutManualControls() throws {
+        let app = launchApplication(
+            seedSampleLibrary: false,
+            bookContent: """
+            # Chapter Workflow
+            ### 作者：Test Author
+            ## Opening
+
+            Opening body.
+            ## Ending
+
+            Ending body.
+            """
+        )
 
         app.descendants(matching: .any)["library-add-book"].click()
         let title = app.textFields["book-editor-title"]
@@ -244,111 +320,53 @@ final class iEvelynUITests: XCTestCase {
 
         let actions = app.descendants(matching: .any)["Actions for Chapter Workflow"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10))
-        openBookInfo(using: actions, in: app)
+        actions.click()
+        XCTAssertFalse(app.menuItems["Book Info…"].exists)
+        XCTAssertTrue(app.menuItems["Edit Book…"].waitForExistence(timeout: 5))
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertFalse(app.descendants(matching: .any)["chapter-management"].exists)
 
-        let chapterManagement = app.descendants(matching: .any)["chapter-management"]
-        XCTAssertTrue(chapterManagement.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["No Chapters"].exists)
-
-        let bookInfoScroll = app.scrollViews["book-info-scroll"]
-        XCTAssertTrue(bookInfoScroll.waitForExistence(timeout: 5))
-        let initialAdd = app.descendants(matching: .any)["chapter-add"]
-        XCTAssertTrue(initialAdd.waitForExistence(timeout: 5))
-        initialAdd.click()
-        enterChapterTitle("Opening", in: app)
-        let opening = app.buttons["Opening"]
+        let book = app.buttons["Chapter Workflow, by Test Author"]
+        book.click()
+        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 10))
+        let tableOfContents = app.descendants(matching: .any)["reader-table-of-contents"]
+        let opening = tableOfContents.descendants(matching: .staticText)["Opening"]
         XCTAssertTrue(opening.waitForExistence(timeout: 5))
-
-        let addChapter = app.descendants(matching: .any)["chapter-add"]
-        addChapter.click()
-        enterChapterTitle("Ending", in: app)
-        let ending = app.buttons["Ending"]
+        let ending = tableOfContents.descendants(matching: .staticText)["Ending"]
         XCTAssertTrue(ending.waitForExistence(timeout: 5))
-
-        opening.click()
-        let moveDown = app.descendants(matching: .any)["chapter-move-down"]
-        XCTAssertTrue(moveDown.waitForExistence(timeout: 5))
-        XCTAssertTrue(moveDown.isEnabled)
-        moveDown.click()
-        waitForChapter(ending, toAppearAbove: opening)
-
-        app.buttons["Close"].click()
+        waitForChapter(opening, toAppearAbove: ending)
+        ending.click()
+        XCTAssertTrue(app.staticTexts["Ending body."].waitForExistence(timeout: 10))
+        app.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
-        openBookInfo(using: actions, in: app)
-
-        XCTAssertTrue(ending.waitForExistence(timeout: 5))
-        waitForChapter(ending, toAppearAbove: opening)
-        let moveUp = app.descendants(matching: .any)["chapter-move-up"]
-        XCTAssertTrue(moveUp.waitForExistence(timeout: 5))
-        XCTAssertFalse(moveUp.isEnabled, "The first chapter should be selected when Book Info reopens.")
-        XCTAssertEqual(app.descendants(matching: .any)["chapter-summary"].value as? String, "2 Chapters • 0 words")
-
-        let delete = app.descendants(matching: .any)["chapter-delete"]
-        XCTAssertTrue(delete.waitForExistence(timeout: 5))
-        scroll(delete, intoViewUsing: bookInfoScroll, velocity: .slow)
-        delete.click()
-        let confirmDelete = app.descendants(matching: .any)["chapter-confirm-delete"]
-        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
-        confirmDelete.click()
-        XCTAssertTrue(ending.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(opening.exists)
-        XCTAssertEqual(app.descendants(matching: .any)["chapter-summary"].value as? String, "1 Chapter • 0 words")
-    }
-
-    @MainActor
-    func testMarkdownEditorAutosavesAndPersists() throws {
-        let app = launchApplication(seedSampleLibrary: false)
-
-        app.descendants(matching: .any)["library-add-book"].click()
-        let title = app.textFields["book-editor-title"]
-        let author = app.textFields["book-editor-author-0"]
-        XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.click()
-        title.typeText("Editor Workflow")
-        author.click()
-        author.typeText("Test Author")
-        app.descendants(matching: .any)["book-editor-save"].click()
-
-        let actions = app.descendants(matching: .any)["Actions for Editor Workflow"]
-        XCTAssertTrue(actions.waitForExistence(timeout: 10))
-        openBookInfo(using: actions, in: app)
-
-        let addChapter = app.descendants(matching: .any)["chapter-add"]
-        XCTAssertTrue(addChapter.waitForExistence(timeout: 5))
-        addChapter.click()
-        enterChapterTitle("Opening", in: app)
-
-        let bookInfoScroll = app.scrollViews["book-info-scroll"]
-        let editor = app.textViews["chapter-markdown-editor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 5))
-        scroll(editor, intoViewUsing: bookInfoScroll)
-        editor.click()
-        editor.typeText("# Opening\n\nHello Unicode chapter")
-
-        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["4 words"].waitForExistence(timeout: 5))
-        let renderedPreview = app.webViews["Opening"]
+        book.click()
+        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 10))
+        let reopenedTableOfContents = app.descendants(matching: .any)["reader-table-of-contents"]
         XCTAssertTrue(
-            renderedPreview.waitForExistence(timeout: 10),
-            "The preview should expose the generated chapter document through WebKit."
+            reopenedTableOfContents.descendants(matching: .staticText)["Opening"]
+                .waitForExistence(timeout: 5)
         )
-        XCTAssertTrue(renderedPreview.staticTexts["Opening"].waitForExistence(timeout: 5))
-        XCTAssertTrue(renderedPreview.staticTexts["Hello Unicode chapter"].exists)
-        XCTAssertFalse(app.staticTexts["Preview Could Not Load"].exists)
-
-        app.buttons["Close"].click()
-        XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
-        openBookInfo(using: actions, in: app)
-
-        XCTAssertTrue(editor.waitForExistence(timeout: 5))
-        scroll(editor, intoViewUsing: app.scrollViews["book-info-scroll"])
-        XCTAssertEqual(editor.value as? String, "# Opening\n\nHello Unicode chapter")
-        XCTAssertTrue(app.staticTexts["Saved"].exists)
+        XCTAssertTrue(
+            reopenedTableOfContents.descendants(matching: .staticText)["Ending"]
+                .waitForExistence(timeout: 5)
+        )
     }
 
     @MainActor
     func testReaderMovesBetweenChaptersAndReturnsToLibrary() throws {
-        let app = launchApplication(seedSampleLibrary: false)
+        let app = launchApplication(
+            seedSampleLibrary: false,
+            bookContent: """
+            # Reader Workflow
+            ### Test Author
+            ## Opening
+
+            Opening chapter body
+            ## Ending
+
+            Ending chapter body
+            """
+        )
 
         app.descendants(matching: .any)["library-add-book"].click()
         let title = app.textFields["book-editor-title"]
@@ -359,36 +377,6 @@ final class iEvelynUITests: XCTestCase {
         author.click()
         author.typeText("Test Author")
         app.descendants(matching: .any)["book-editor-save"].click()
-
-        let actions = app.descendants(matching: .any)["Actions for Reader Workflow"]
-        XCTAssertTrue(actions.waitForExistence(timeout: 10))
-        openBookInfo(using: actions, in: app)
-
-        let addChapter = app.descendants(matching: .any)["chapter-add"]
-        XCTAssertTrue(addChapter.waitForExistence(timeout: 5))
-        addChapter.click()
-        enterChapterTitle("Opening", in: app)
-
-        let bookInfoScroll = app.scrollViews["book-info-scroll"]
-        let editor = app.textViews["chapter-markdown-editor"]
-        XCTAssertTrue(editor.waitForExistence(timeout: 5))
-        scroll(editor, intoViewUsing: bookInfoScroll)
-        editor.click()
-        editor.typeText("# Opening\n\nOpening chapter body")
-        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
-
-        for _ in 0..<10 where !addChapter.isHittable {
-            bookInfoScroll.swipeDown(velocity: .fast)
-        }
-        XCTAssertTrue(addChapter.isHittable)
-        addChapter.click()
-        enterChapterTitle("Ending", in: app)
-        scroll(editor, intoViewUsing: bookInfoScroll)
-        editor.click()
-        editor.typeText("# Ending\n\nEnding chapter body")
-        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
-
-        app.buttons["Close"].click()
         let book = app.buttons["Reader Workflow, by Test Author"]
         XCTAssertTrue(book.waitForExistence(timeout: 10))
         book.click()
@@ -420,16 +408,6 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
-    private func enterChapterTitle(_ value: String, in app: XCUIApplication) {
-        let field = app.textFields["chapter-title-field"]
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
-        field.click()
-        field.typeKey("a", modifierFlags: .command)
-        field.typeText(value)
-        app.descendants(matching: .any)["chapter-title-save"].click()
-    }
-
-    @MainActor
     private func waitForChapter(_ upperChapter: XCUIElement, toAppearAbove lowerChapter: XCUIElement) {
         let reordered = expectation(
             for: NSPredicate { _, _ in
@@ -441,34 +419,10 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
-    private func scroll(
-        _ element: XCUIElement,
-        intoViewUsing scrollView: XCUIElement,
-        velocity: XCUIGestureVelocity = .default
-    ) {
-        for _ in 0..<10 where !element.isHittable {
-            scrollView.swipeUp(velocity: velocity)
-        }
-        XCTAssertTrue(element.isHittable, "The requested Book Info control should be reachable by scrolling.")
-    }
-
-    @MainActor
-    private func openBookInfo(using actions: XCUIElement, in app: XCUIApplication) {
-        let bookInfoMenuItem = app.menuItems["Book Info…"]
-
-        for _ in 0..<3 {
-            actions.click()
-            if bookInfoMenuItem.waitForExistence(timeout: 2), bookInfoMenuItem.isHittable {
-                bookInfoMenuItem.click()
-                return
-            }
-        }
-
-        XCTFail("The book actions menu should expose Book Info.")
-    }
-
-    @MainActor
-    private func launchApplication(seedSampleLibrary: Bool) -> XCUIApplication {
+    private func launchApplication(
+        seedSampleLibrary: Bool,
+        bookContent: String? = nil
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += [
             "-ApplePersistenceIgnoreState",
@@ -477,6 +431,10 @@ final class iEvelynUITests: XCTestCase {
         ]
         if seedSampleLibrary {
             app.launchArguments.append("--seed-sample-library")
+        }
+        if let bookContent {
+            app.launchEnvironment["IEVELYN_UI_TEST_CONTENT_BASE64"] =
+                Data(bookContent.utf8).base64EncodedString()
         }
         app.launch()
         return app

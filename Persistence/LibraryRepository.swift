@@ -5,6 +5,19 @@ nonisolated protocol LibraryRepository: Sendable {
     func observeLibraryBooks() -> AsyncThrowingStream<[LibraryBook], Error>
     func createBook(metadata: BookMetadataInput, at date: Date) async throws -> UUID
     func updateBook(id: UUID, metadata: BookMetadataInput, at date: Date) async throws
+    func createBook(
+        metadata: BookMetadataInput,
+        contentChapters: [ImportedBookChapter],
+        coverSourceURL: URL?,
+        at date: Date
+    ) async throws -> UUID
+    func updateBook(
+        id: UUID,
+        metadata: BookMetadataInput,
+        chapterUpdate: BookChapterUpdate,
+        coverUpdate: BookCoverUpdate,
+        at date: Date
+    ) async throws
     func setFavorite(bookID: UUID, isFavorite: Bool, at date: Date) async throws
     func moveBookToTrash(id: UUID, at date: Date) async throws
     func restoreBook(id: UUID, at date: Date) async throws
@@ -36,6 +49,7 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
     case chapterAlreadyExists
     case chapterPositionLimitReached
     case chapterRevisionLimitReached
+    case bookContentRequired
     case bookNotFound
     case bookIsInTrash
     case permanentDeleteRequiresTrash
@@ -53,6 +67,8 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
             "The chapter order could not be changed because its stored positions are out of range."
         case .chapterRevisionLimitReached:
             "The chapter could not be saved because its revision limit was reached."
+        case .bookContentRequired:
+            "A book must contain at least one imported chapter."
         case .bookNotFound:
             "The selected book no longer exists."
         case .bookIsInTrash:
@@ -79,6 +95,25 @@ extension LibraryRepository {
     }
 
     func updateBook(id: UUID, metadata: BookMetadataInput, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func createBook(
+        metadata: BookMetadataInput,
+        contentChapters: [ImportedBookChapter],
+        coverSourceURL: URL?,
+        at date: Date
+    ) async throws -> UUID {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func updateBook(
+        id: UUID,
+        metadata: BookMetadataInput,
+        chapterUpdate: BookChapterUpdate,
+        coverUpdate: BookCoverUpdate,
+        at date: Date
+    ) async throws {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
@@ -280,6 +315,186 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 at: date,
                 database: database
             )
+        }
+    }
+
+    func createBook(
+        metadata: BookMetadataInput,
+        contentChapters: [ImportedBookChapter],
+        coverSourceURL: URL?,
+        at date: Date = .now
+    ) async throws -> UUID {
+        let metadata = try metadata.validated()
+        let contentChapters = try Self.validatedImportedChapters(contentChapters)
+        guard !contentChapters.isEmpty else {
+            throw LibraryRepositoryError.bookContentRequired
+        }
+
+        let book = Book(
+            title: metadata.title,
+            subtitle: metadata.subtitle,
+            summary: metadata.summary,
+            createdAt: date,
+            updatedAt: date,
+            lastOpenedAt: nil
+        )
+        let preparedCover: PreparedLibraryAsset?
+        if let coverSourceURL {
+            preparedCover = try await assetStore.prepareCoverImport(
+                bookID: book.id,
+                sourceURL: coverSourceURL,
+                at: date
+            )
+        } else {
+            preparedCover = nil
+        }
+
+        do {
+            try await database.write { database in
+                try book.insert(database)
+                try Self.replaceAuthors(
+                    forBookID: book.id,
+                    displayNames: metadata.authors,
+                    at: date,
+                    database: database
+                )
+                for (position, importedChapter) in contentChapters.enumerated() {
+                    try Chapter(
+                        bookID: book.id,
+                        title: importedChapter.title,
+                        markdown: importedChapter.markdown,
+                        position: position,
+                        createdAt: date,
+                        updatedAt: date
+                    )
+                    .insert(database)
+                }
+                if let preparedCover {
+                    try preparedCover.asset.insert(database)
+                }
+            }
+        } catch {
+            if let preparedCover {
+                _ = await assetStore.discardPreparedAsset(preparedCover)
+            }
+            throw error
+        }
+        return book.id
+    }
+
+    func updateBook(
+        id: UUID,
+        metadata: BookMetadataInput,
+        chapterUpdate: BookChapterUpdate,
+        coverUpdate: BookCoverUpdate,
+        at date: Date = .now
+    ) async throws {
+        let metadata = try metadata.validated()
+        let validatedChapterUpdate: BookChapterUpdate
+        switch chapterUpdate {
+        case .unchanged:
+            validatedChapterUpdate = .unchanged
+        case .replace(let chapters):
+            let chapters = try Self.validatedImportedChapters(chapters)
+            guard !chapters.isEmpty else { throw LibraryRepositoryError.bookContentRequired }
+            validatedChapterUpdate = .replace(chapters)
+        case .append(let chapters):
+            let chapters = try Self.validatedImportedChapters(chapters)
+            guard !chapters.isEmpty else { throw LibraryRepositoryError.bookContentRequired }
+            validatedChapterUpdate = .append(chapters)
+        }
+
+        let preparedCover: PreparedLibraryAsset?
+        if case .replace(let sourceURL) = coverUpdate {
+            preparedCover = try await assetStore.prepareCoverImport(
+                bookID: id,
+                sourceURL: sourceURL,
+                at: date
+            )
+        } else {
+            preparedCover = nil
+        }
+
+        let previousCover: Asset?
+        do {
+            previousCover = try await database.write { database in
+                var book = try Self.fetchEditableBook(id: id, database: database)
+
+                book.title = metadata.title
+                book.subtitle = metadata.subtitle
+                book.summary = metadata.summary
+                book.updatedAt = date
+                try book.update(database)
+                try Self.replaceAuthors(
+                    forBookID: id,
+                    displayNames: metadata.authors,
+                    at: date,
+                    database: database
+                )
+
+                switch validatedChapterUpdate {
+                case .unchanged:
+                    break
+                case .replace(let chapters):
+                    try Self.replaceImportedChapters(
+                        chapters,
+                        forBookID: id,
+                        at: date,
+                        database: database
+                    )
+                case .append(let chapters):
+                    try Self.appendImportedChapters(
+                        chapters,
+                        toBookID: id,
+                        at: date,
+                        database: database
+                    )
+                }
+
+                switch coverUpdate {
+                case .unchanged:
+                    return nil
+                case .remove:
+                    let previousCover = try Self.fetchCover(bookID: id, database: database)
+                    if let previousCover {
+                        _ = try previousCover.delete(database)
+                    }
+                    return previousCover
+                case .replace:
+                    guard let preparedCover else {
+                        throw LibraryAssetError.fileImportFailed
+                    }
+                    let previousCover = try Self.fetchCover(bookID: id, database: database)
+                    if let previousCover {
+                        _ = try previousCover.delete(database)
+                    }
+                    try preparedCover.asset.insert(database)
+                    return previousCover
+                }
+            }
+        } catch {
+            if let preparedCover {
+                _ = await assetStore.discardPreparedAsset(preparedCover)
+            }
+            throw error
+        }
+
+        if let previousCover {
+            let report = await assetStore.removeFiles(for: [previousCover])
+            if report.failedRemovalCount > 0 {
+                let completedAction = switch coverUpdate {
+                case .remove:
+                    "The book and cover were updated"
+                case .replace:
+                    "The book and replacement cover were updated"
+                case .unchanged:
+                    "The book was updated"
+                }
+                throw LibraryAssetError.cleanupIncomplete(
+                    completedAction: completedAction,
+                    remainingFileCount: report.failedRemovalCount
+                )
+            }
         }
     }
 
@@ -923,6 +1138,138 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 trashedAt: book.trashedAt
             )
         }
+    }
+
+    private static func validatedImportedChapters(
+        _ chapters: [ImportedBookChapter]
+    ) throws -> [ImportedBookChapter] {
+        try chapters.map { chapter in
+            ImportedBookChapter(
+                title: try ChapterTitleInput(title: chapter.title).validated(),
+                markdown: chapter.markdown.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        }
+    }
+
+    private static func appendImportedChapters(
+        _ importedChapters: [ImportedBookChapter],
+        toBookID bookID: UUID,
+        at date: Date,
+        database: Database
+    ) throws {
+        let firstPosition = try nextTemporaryChapterPosition(
+            bookID: bookID,
+            additionalPositionCount: importedChapters.count,
+            database: database
+        )
+        for (offset, importedChapter) in importedChapters.enumerated() {
+            try Chapter(
+                bookID: bookID,
+                title: importedChapter.title,
+                markdown: importedChapter.markdown,
+                position: firstPosition + offset,
+                createdAt: date,
+                updatedAt: date
+            )
+            .insert(database)
+        }
+    }
+
+    private static func replaceImportedChapters(
+        _ importedChapters: [ImportedBookChapter],
+        forBookID bookID: UUID,
+        at date: Date,
+        database: Database
+    ) throws {
+        let storedChapters = try fetchChapters(forBookID: bookID, database: database)
+        var matches = Array<Chapter?>(repeating: nil, count: importedChapters.count)
+        var unusedStoredIndices = Set(storedChapters.indices)
+
+        for index in importedChapters.indices where storedChapters.indices.contains(index) {
+            if normalizedChapterTitle(storedChapters[index].title)
+                == normalizedChapterTitle(importedChapters[index].title) {
+                matches[index] = storedChapters[index]
+                unusedStoredIndices.remove(index)
+            }
+        }
+
+        for importedIndex in importedChapters.indices where matches[importedIndex] == nil {
+            let normalizedTitle = normalizedChapterTitle(importedChapters[importedIndex].title)
+            let matchingStoredIndices = unusedStoredIndices.filter {
+                normalizedChapterTitle(storedChapters[$0].title) == normalizedTitle
+            }
+            let unmatchedImportedCount = importedChapters.indices.filter {
+                matches[$0] == nil
+                    && normalizedChapterTitle(importedChapters[$0].title) == normalizedTitle
+            }
+            .count
+            if matchingStoredIndices.count == 1, unmatchedImportedCount == 1,
+               let storedIndex = matchingStoredIndices.first {
+                matches[importedIndex] = storedChapters[storedIndex]
+                unusedStoredIndices.remove(storedIndex)
+            }
+        }
+
+        for importedIndex in importedChapters.indices where matches[importedIndex] == nil {
+            guard unusedStoredIndices.contains(importedIndex) else { continue }
+            matches[importedIndex] = storedChapters[importedIndex]
+            unusedStoredIndices.remove(importedIndex)
+        }
+
+        if !storedChapters.isEmpty {
+            let temporaryPositionBase = try nextTemporaryChapterPosition(
+                bookID: bookID,
+                additionalPositionCount: storedChapters.count,
+                database: database
+            )
+            for (offset, chapter) in storedChapters.enumerated() {
+                try database.execute(
+                    sql: "UPDATE chapters SET position = ? WHERE id = ? AND bookID = ?",
+                    arguments: [
+                        temporaryPositionBase + offset,
+                        chapter.id.databaseString,
+                        bookID.databaseString
+                    ]
+                )
+            }
+        }
+
+        let retainedIDs = Set(matches.compactMap { $0?.id })
+        for storedChapter in storedChapters where !retainedIDs.contains(storedChapter.id) {
+            _ = try storedChapter.delete(database)
+        }
+
+        for (position, importedChapter) in importedChapters.enumerated() {
+            if var chapter = matches[position] {
+                if chapter.markdown != importedChapter.markdown {
+                    let (nextRevision, overflowed) = chapter.renderRevision.addingReportingOverflow(1)
+                    guard !overflowed else {
+                        throw LibraryRepositoryError.chapterRevisionLimitReached
+                    }
+                    chapter.markdown = importedChapter.markdown
+                    chapter.renderRevision = nextRevision
+                    chapter.sourceHash = nil
+                }
+                chapter.title = importedChapter.title
+                chapter.position = position
+                chapter.updatedAt = date
+                try chapter.update(database)
+            } else {
+                try Chapter(
+                    bookID: bookID,
+                    title: importedChapter.title,
+                    markdown: importedChapter.markdown,
+                    position: position,
+                    createdAt: date,
+                    updatedAt: date
+                )
+                .insert(database)
+            }
+        }
+    }
+
+    private static func normalizedChapterTitle(_ title: String) -> String {
+        LibraryNameNormalizer.normalize(title)
     }
 
     private static func replaceAuthors(

@@ -141,6 +141,48 @@ struct LibraryAssetTests {
         #expect(!FileManager.default.fileExists(atPath: secondThumbnailURL.path))
     }
 
+    @Test("Unified book create and update commit content with cover changes")
+    func unifiedBookAndCoverChanges() async throws {
+        let environment = try makeEnvironment(named: "unified-book-cover")
+        defer { removeTestDirectory(environment.rootURL) }
+        let sourceURL = environment.rootURL.appending(path: "cover.png")
+        try writeImage(to: sourceURL, type: .png)
+
+        let bookID = try await environment.repository.createBook(
+            metadata: BookMetadataInput(title: "Unified Book", authors: ["Asset Tester"]),
+            contentChapters: [
+                ImportedBookChapter(title: "Opening", markdown: "## Opening\n\nBody.")
+            ],
+            coverSourceURL: sourceURL,
+            at: referenceDate
+        )
+        let createdBook = try #require(
+            try await environment.repository.fetchLibraryBooks().first(where: { $0.id == bookID })
+        )
+        let cover = try #require(createdBook.coverAsset)
+        let storedURL = try await environment.repository.resolveBookAssetURL(
+            environment.repository.bookAssetURL(for: cover)
+        )
+        #expect(try await environment.repository.chapters(forBookID: bookID).map(\.title) == ["Opening"])
+        #expect(FileManager.default.fileExists(atPath: storedURL.path))
+
+        try await environment.repository.updateBook(
+            id: bookID,
+            metadata: BookMetadataInput(title: "Updated Unified Book", authors: ["Asset Tester"]),
+            chapterUpdate: .unchanged,
+            coverUpdate: .remove,
+            at: referenceDate.addingTimeInterval(60)
+        )
+
+        let updatedBook = try #require(
+            try await environment.repository.fetchLibraryBooks().first(where: { $0.id == bookID })
+        )
+        #expect(updatedBook.title == "Updated Unified Book")
+        #expect(updatedBook.coverAsset == nil)
+        #expect(try await environment.repository.chapters(forBookID: bookID).map(\.title) == ["Opening"])
+        #expect(!FileManager.default.fileExists(atPath: storedURL.path))
+    }
+
     @Test("Unsupported files are rejected without changing the library")
     func unsupportedFileIsRejected() async throws {
         let environment = try makeEnvironment(named: "unsupported")
