@@ -44,5 +44,27 @@
 			</dict>
 		</dict>
 	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>iEvelyn Legacy Migration Bundle</string>
+			<key>UTTypeIdentifier</key>
+			<string>org.cysun.ievelyn.legacy-export</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>ievelynlegacy</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/vnd.ievelyn.legacy+zip</string>
+			</dict>
+		</dict>
+	</array>
 </dict>
 </plist>

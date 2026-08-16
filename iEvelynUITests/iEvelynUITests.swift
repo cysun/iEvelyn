@@ -366,6 +366,7 @@ final class iEvelynUITests: XCTestCase {
         let backup = app.menuItems["Back Up Library…"]
         XCTAssertTrue(backup.waitForExistence(timeout: 5))
         XCTAssertTrue(app.menuItems["Restore Library…"].exists)
+        XCTAssertTrue(app.menuItems["Import Legacy Library…"].exists)
         XCTAssertTrue(app.menuItems["Check Library Integrity"].exists)
         backup.click()
 
@@ -385,6 +386,17 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 5))
         savePanel.buttons["Cancel"].click()
         XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
+
+        app.menuBars.menuBarItems["Library"].click()
+        app.menuItems["Import Legacy Library…"].click()
+        let importPanel = app.sheets.firstMatch
+        XCTAssertTrue(
+            importPanel.waitForExistence(timeout: 5),
+            "Import Legacy Library should present a system file picker."
+        )
+        XCTAssertTrue(importPanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        importPanel.buttons["Cancel"].click()
+        XCTAssertTrue(importPanel.waitForNonExistence(timeout: 5))
     }
 
     @MainActor

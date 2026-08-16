@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 15 — native legacy-bundle importer.
-- Implementation status: Step 15 is authorized and not started.
+- Current milestone: Step 16 — polish and release readiness.
+- Implementation status: Step 16 is authorized and not started.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -635,8 +635,8 @@ Migrate the verified neutral bundle into the native library with validation and 
 
 - Review the dry-run summary before import.
 - Compare final counts and warnings with the exporter report.
-- Inspect representative books, multi-author metadata, chapter order, Unicode, recreated 2:3 covers where supplied, and in-book images.
-- Search imported content and restore a reading location if migrated.
+- Inspect representative books, the preserved unsplit legacy author value, chapter order, Unicode, generated artwork for intentionally excluded legacy covers, and in-book images.
+- Search imported content. Confirm that no reading position was fabricated because legacy paragraph-index bookmarks/progress were intentionally excluded.
 - Export representative imported books to EPUB and open them in Apple Books.
 - Repeat import against a disposable library and test corrupt-bundle rollback.
 
@@ -700,7 +700,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 12 | EPUB 3 export | Accepted | ZIPFoundation 0.9.20 packages deterministic EPUB 3.3 output with stable UUID metadata, `und` language policy, title/cover page, navigation, external CSS, ordered XHTML chapters, manifest/spine, referenced assets, HEIC/HEIF-to-PNG conversion, preflight errors, and SwiftUI file export. Debug/Release builds and all 96 tests (86 unit/integration and ten UI) pass; text-only and Unicode cover/image fixtures pass EPUBCheck 5.3.0 with zero messages. The manual checkpoint was accepted on 2026-08-16. |
 | 13 | Backup, restore, and interchange | Accepted | Versioned `.ievelynlibrary` bundles contain an online SQLite snapshot, all authoritative assets, record counts, producer metadata, and SHA-256 checksums. The exported ZIP-conforming bundle type keeps new filenames to one extension and lets Restore select both corrected and previously doubled-extension backups. Restore rejects unsafe, incomplete, corrupt, or unsupported bundles before staging, validates a temporary sibling library, and uses an atomic directory exchange with rollback. The Library menu adds backup, restore confirmation, and a human-readable Check Library Integrity report; per-book actions add complete Step 9A Markdown export. No schema migration or dependency was added. Debug/Release builds and all 104 tests (93 unit/integration and 11 UI) pass; the manual checkpoint was accepted on 2026-08-16. |
 | 14 | Separate legacy data exporter | Accepted | Separate .NET 10/Npgsql 10.0.3 console exporter writes documented deterministic `.ievelynlegacy` ZIP bundles from a verified repeatable-read `READ ONLY` transaction configured only through `EVELYN_MIGRATION_CONNECTION_STRING`. It supports dry-run, selected book IDs, explicit atomic overwrite, canonical UTF-8 chapter Markdown, recognized referenced assets, SHA-256 checksums, source/export counts, warnings, skipped items, and stable legacy-ID mappings. Users/authentication, aggregate Markdown, generated HTML/EPUB, thumbnails, legacy 3:4 covers, and user-bound paragraph-index bookmarks/progress are explicitly excluded and reported. Release build, formatter verification, all 14 fixture tests, current NuGet vulnerability scan, and a disposable PostgreSQL dry-run/repeated-export/source-digest check pass; the successful live export checkpoint was accepted on 2026-08-16. |
-| 15 | Native legacy-bundle importer | Not started | |
+| 15 | Native legacy-bundle importer | Accepted | Validated no-write review, explicit duplicate handling, new UUID mapping, asset-route rewriting, staged database/assets, full search rebuild, controlled reader rendering, retained reconciliation reports, atomic exchange, and rollback are implemented without a schema migration or dependency. Debug/Release builds and all 110 tests (99 unit/integration and 11 UI) pass; the successful live import checkpoint was accepted on 2026-08-16. |
 | 16 | Polish and release readiness | Not started | |
 
 ## Plan maintenance

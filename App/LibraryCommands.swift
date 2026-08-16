@@ -11,6 +11,7 @@ private struct LibraryDestinationFocusedValueKey: FocusedValueKey {
 nonisolated enum LibraryInterchangeCommand: Equatable, Sendable {
     case createBackup
     case restoreBackup
+    case importLegacyBundle
     case checkAndRepair
 }
 
@@ -71,6 +72,11 @@ struct LibraryCommands: Commands {
 
             Button("Restore Library…") {
                 interchangeCommand = .restoreBackup
+            }
+            .disabled(interchangeCommand == nil)
+
+            Button("Import Legacy Library…") {
+                interchangeCommand = .importLegacyBundle
             }
             .disabled(interchangeCommand == nil)
 

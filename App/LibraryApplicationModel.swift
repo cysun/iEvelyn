@@ -224,6 +224,120 @@ final class LibraryApplicationModel {
         }
     }
 
+    func prepareLegacyImport(from sourceURL: URL) async -> LegacyImportPlan? {
+        guard !isPerformingInterchange,
+              let repository = repository as? GRDBLibraryRepository,
+              repository.database.location.isProduction else {
+            alert = LibraryApplicationAlert(
+                title: "Legacy Import Unavailable",
+                message: LegacyImportError.unavailableForCurrentLibrary.localizedDescription
+            )
+            return nil
+        }
+        isPerformingInterchange = true
+        defer { isPerformingInterchange = false }
+
+        do {
+            return try await LegacyImportService(repository: repository)
+                .prepareImport(from: sourceURL)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            alert = LibraryApplicationAlert(
+                title: "Could Not Validate Legacy Bundle",
+                message: error.localizedDescription
+            )
+            return nil
+        }
+    }
+
+    func importLegacyLibrary(
+        _ plan: LegacyImportPlan,
+        duplicateStrategy: LegacyDuplicateStrategy
+    ) async -> Bool {
+        guard !isPerformingInterchange,
+              let currentRepository = repository as? GRDBLibraryRepository,
+              let activeDatabaseURL = currentRepository.database.location.databaseURL,
+              currentRepository.database.location.isProduction else {
+            alert = LibraryApplicationAlert(
+                title: "Legacy Import Unavailable",
+                message: LegacyImportError.unavailableForCurrentLibrary.localizedDescription
+            )
+            return false
+        }
+        isPerformingInterchange = true
+        defer { isPerformingInterchange = false }
+
+        let service = LegacyImportService(repository: currentRepository)
+        var previousLibraryIsActive = true
+        var preparedImport: PreparedLegacyImport?
+        do {
+            let prepared = try await service.prepareStagedImport(
+                plan,
+                duplicateStrategy: duplicateStrategy
+            )
+            preparedImport = prepared
+            let activeRootURL = activeDatabaseURL.deletingLastPathComponent()
+            repository = nil
+            isLoading = true
+            loadErrorMessage = nil
+            await Task.yield()
+
+            try await currentRepository.database.close()
+            try await service.atomicallySwap(prepared, with: activeRootURL)
+            previousLibraryIsActive = false
+
+            do {
+                repository = try await Self.openProductionRepository()
+                isLoading = false
+                await service.discardPreparedImport(prepared)
+                preparedImport = nil
+                alert = LibraryApplicationAlert(
+                    title: "Legacy Import Complete",
+                    message: "Imported \(prepared.importedBookCount) book(s), \(prepared.importedChapterCount) chapter(s), and \(prepared.importedAssetCount) asset record(s). Skipped \(prepared.skippedDuplicateCount) likely duplicate book(s). The permanent reconciliation report is in \(prepared.reconciliationReportRelativePath)."
+                )
+                return true
+            } catch let importedLibraryError {
+                do {
+                    try await service.atomicallySwap(prepared, with: activeRootURL)
+                    previousLibraryIsActive = true
+                    await service.discardPreparedImport(prepared)
+                    preparedImport = nil
+                    repository = try await Self.openProductionRepository()
+                    isLoading = false
+                } catch {
+                    loadErrorMessage = LegacyImportError.atomicSwapFailed.localizedDescription
+                    throw LegacyImportError.atomicSwapFailed
+                }
+                throw importedLibraryError
+            }
+        } catch is CancellationError {
+            if previousLibraryIsActive, let preparedImport {
+                await service.discardPreparedImport(preparedImport)
+            }
+            if repository == nil {
+                repository = try? await Self.openProductionRepository()
+                isLoading = false
+            }
+            return false
+        } catch {
+            if previousLibraryIsActive, let preparedImport {
+                await service.discardPreparedImport(preparedImport)
+            }
+            if repository == nil {
+                repository = try? await Self.openProductionRepository()
+                isLoading = false
+            }
+            alert = LibraryApplicationAlert(
+                title: "Could Not Import Legacy Library",
+                message: previousLibraryIsActive
+                    ? "\(error.localizedDescription) The previous library remains active."
+                    : "\(error.localizedDescription) The previous library was preserved in the import staging area and was not deleted."
+            )
+            return false
+        }
+    }
+
     private static func openProductionRepository() async throws -> GRDBLibraryRepository {
         let repository = GRDBLibraryRepository(database: try await LibraryDatabase.openProduction())
         try await repository.prepareAssetStorage()
@@ -318,6 +432,8 @@ struct LibraryApplicationRootView: View {
     @State private var isExportingBackup = false
     @State private var isImportingBackup = false
     @State private var isConfirmingRestore = false
+    @State private var isSelectingLegacyBundle = false
+    @State private var legacyImportPlan: LegacyImportPlan?
 
     var body: some View {
         Group {
@@ -364,6 +480,8 @@ struct LibraryApplicationRootView: View {
                 }
             case .restoreBackup:
                 isConfirmingRestore = true
+            case .importLegacyBundle:
+                isSelectingLegacyBundle = true
             case .checkAndRepair:
                 Task {
                     await applicationModel.checkAndRepairLibrary()
@@ -401,6 +519,34 @@ struct LibraryApplicationRootView: View {
                         message: error.localizedDescription
                     )
                 }
+            }
+        }
+        .fileImporter(
+            isPresented: $isSelectingLegacyBundle,
+            allowedContentTypes: [LegacyMigrationBundleType.contentType, .zip],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let sourceURL = urls.first else { return }
+                Task {
+                    legacyImportPlan = await applicationModel.prepareLegacyImport(from: sourceURL)
+                }
+            case .failure(let error):
+                if (error as? CocoaError)?.code != .userCancelled {
+                    applicationModel.alert = LibraryApplicationAlert(
+                        title: "Could Not Open Legacy Bundle",
+                        message: error.localizedDescription
+                    )
+                }
+            }
+        }
+        .sheet(item: $legacyImportPlan) { plan in
+            LegacyImportReviewView(plan: plan) { strategy in
+                await applicationModel.importLegacyLibrary(
+                    plan,
+                    duplicateStrategy: strategy
+                )
             }
         }
         .confirmationDialog(
