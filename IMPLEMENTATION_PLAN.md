@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 13 — backup, restore, and interchange.
-- Implementation status: Step 12 was accepted on 2026-08-16; Step 13 has not started.
+- Current milestone: Step 14 — separate legacy data exporter.
+- Implementation status: Step 14 is authorized and not started.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -698,7 +698,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 10 | Progress and bookmarks | Accepted | Debounced semantic progress restoration, Currently Reading updates, and one-click unlabeled bookmark create/navigate/delete are implemented. Stable block anchors fall back through quoted text, nearby context, and chapter fraction after whole-book replacement; append preserves existing anchors. Bookmark labels and notes remain outside the product, with their nullable database fields reserved and always written as null by this UI. No schema migration or dependency was added. Debug/Release builds and all 81 tests (72 unit/integration and nine UI) passed; the manual checkpoint was accepted on 2026-08-16. |
 | 11 | Full-text search and organization | Accepted | External-content FTS5 search uses an audited local adaptation of `simple` v0.7.1 configured strictly as `simple 0`; no pinyin code or dictionary is shipped. Scoped title/subtitle, author, tag, chapter-title, and semantic-content results provide highlighted snippets and direct reader navigation. Indexed mutations, including whole-book Replace/Append, are transactional; Trash is deliberate, bookmarks are excluded, Author/Tag filters show counts, and Debug includes canonical repair. Debug/Release builds and all 88 tests (79 unit/integration and nine UI) passed; the manual checkpoint was accepted on 2026-08-16. |
 | 12 | EPUB 3 export | Accepted | ZIPFoundation 0.9.20 packages deterministic EPUB 3.3 output with stable UUID metadata, `und` language policy, title/cover page, navigation, external CSS, ordered XHTML chapters, manifest/spine, referenced assets, HEIC/HEIF-to-PNG conversion, preflight errors, and SwiftUI file export. Debug/Release builds and all 96 tests (86 unit/integration and ten UI) pass; text-only and Unicode cover/image fixtures pass EPUBCheck 5.3.0 with zero messages. The manual checkpoint was accepted on 2026-08-16. |
-| 13 | Backup, restore, and interchange | Not started | |
+| 13 | Backup, restore, and interchange | Accepted | Versioned `.ievelynlibrary` bundles contain an online SQLite snapshot, all authoritative assets, record counts, producer metadata, and SHA-256 checksums. The exported ZIP-conforming bundle type keeps new filenames to one extension and lets Restore select both corrected and previously doubled-extension backups. Restore rejects unsafe, incomplete, corrupt, or unsupported bundles before staging, validates a temporary sibling library, and uses an atomic directory exchange with rollback. The Library menu adds backup, restore confirmation, and a human-readable Check Library Integrity report; per-book actions add complete Step 9A Markdown export. No schema migration or dependency was added. Debug/Release builds and all 104 tests (93 unit/integration and 11 UI) pass; the manual checkpoint was accepted on 2026-08-16. |
 | 14 | Separate legacy data exporter | Not started | |
 | 15 | Native legacy-bundle importer | Not started | |
 | 16 | Polish and release readiness | Not started | |

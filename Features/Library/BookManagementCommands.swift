@@ -3,6 +3,7 @@ import SwiftUI
 enum BookManagementAction {
     case edit
     case exportEPUB
+    case exportMarkdown
     case toggleFavorite
     case moveToTrash
     case restore
@@ -29,6 +30,10 @@ struct BookManagementCommands: View {
 
             Button("Export EPUB…", systemImage: "square.and.arrow.up") {
                 onAction(.exportEPUB)
+            }
+
+            Button("Export Markdown…", systemImage: "doc.plaintext") {
+                onAction(.exportMarkdown)
             }
 
             Divider()

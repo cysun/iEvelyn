@@ -11,6 +11,7 @@ final class LibraryViewModel {
     private(set) var errorMessage: String?
     private(set) var isPerformingOperation = false
     private(set) var isPreparingEPUB = false
+    private(set) var isPreparingMarkdown = false
     var alert: LibraryViewModelAlert?
     private var isObserving = false
     private var searchTask: Task<Void, Never>?
@@ -18,6 +19,7 @@ final class LibraryViewModel {
     private let now: @Sendable () -> Date
     private let bookContentImporter: any BookContentImporting
     private let epubExporter: any EPUBExporting
+    private let markdownExporter: any MarkdownExporting
 
     var destination: LibraryDestination = .allBooks {
         didSet {
@@ -50,13 +52,15 @@ final class LibraryViewModel {
         referenceDate: Date = .now,
         now: @escaping @Sendable () -> Date = { .now },
         bookContentImporter: any BookContentImporting = BookContentImporter(),
-        epubExporter: (any EPUBExporting)? = nil
+        epubExporter: (any EPUBExporting)? = nil,
+        markdownExporter: (any MarkdownExporting)? = nil
     ) {
         self.repository = repository
         self.referenceDate = referenceDate
         self.now = now
         self.bookContentImporter = bookContentImporter
         self.epubExporter = epubExporter ?? EPUBExportService(repository: repository)
+        self.markdownExporter = markdownExporter ?? MarkdownInterchangeService(repository: repository)
         books = initialBooks
         isLoading = initialBooks.isEmpty
         coverCache.countLimit = 80
@@ -256,6 +260,32 @@ final class LibraryViewModel {
     func reportEPUBFileWriteFailure(_ error: Error) {
         alert = LibraryViewModelAlert(
             title: "Could Not Save EPUB",
+            message: error.localizedDescription
+        )
+    }
+
+    func prepareMarkdownExport(for book: LibraryBook) async -> MarkdownExportPresentation? {
+        guard !isPreparingMarkdown else { return nil }
+        isPreparingMarkdown = true
+        defer { isPreparingMarkdown = false }
+
+        do {
+            let file = try await markdownExporter.exportMarkdown(book: book)
+            return MarkdownExportPresentation(file: file)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            alert = LibraryViewModelAlert(
+                title: "Could Not Export Markdown",
+                message: error.localizedDescription
+            )
+            return nil
+        }
+    }
+
+    func reportMarkdownFileWriteFailure(_ error: Error) {
+        alert = LibraryViewModelAlert(
+            title: "Could Not Save Markdown",
             message: error.localizedDescription
         )
     }

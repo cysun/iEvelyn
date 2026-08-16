@@ -1,11 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct LibraryRootView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var model: LibraryViewModel
     @State private var editorConfiguration: BookEditorConfiguration?
-    @State private var exportPresentation: EPUBExportPresentation?
-    @State private var isExportingEPUB = false
+    @State private var exportPresentation: BookExportPresentation?
+    @State private var isExportingBook = false
 
     init(repository: any LibraryRepository) {
         _model = State(initialValue: LibraryViewModel(repository: repository))
@@ -61,8 +62,17 @@ struct LibraryRootView: View {
                         guard let preparedExport = await model.prepareEPUBExport(for: book) else {
                             return
                         }
-                        exportPresentation = preparedExport
-                        isExportingEPUB = true
+                        exportPresentation = .epub(preparedExport)
+                        isExportingBook = true
+                    }
+                },
+                onExportMarkdown: { book in
+                    Task {
+                        guard let preparedExport = await model.prepareMarkdownExport(for: book) else {
+                            return
+                        }
+                        exportPresentation = .markdown(preparedExport)
+                        isExportingBook = true
                     }
                 }
             )
@@ -91,16 +101,24 @@ struct LibraryRootView: View {
             )
         }
         .fileExporter(
-            isPresented: $isExportingEPUB,
-            document: exportPresentation.map { EPUBExportDocument(data: $0.file.data) },
-            contentType: EPUBExportDocument.contentType,
-            defaultFilename: exportPresentation?.file.suggestedFilename ?? "Untitled Book.epub"
+            isPresented: $isExportingBook,
+            document: exportPresentation.map { BookExportDocument(data: $0.data) },
+            contentType: exportPresentation?.contentType ?? .data,
+            defaultFilename: exportPresentation?.suggestedFilename ?? "Untitled Book"
         ) { result in
-            isExportingEPUB = false
+            let completedPresentation = exportPresentation
+            isExportingBook = false
             exportPresentation = nil
             if case .failure(let error) = result,
                (error as? CocoaError)?.code != .userCancelled {
-                model.reportEPUBFileWriteFailure(error)
+                switch completedPresentation {
+                case .epub:
+                    model.reportEPUBFileWriteFailure(error)
+                case .markdown:
+                    model.reportMarkdownFileWriteFailure(error)
+                case nil:
+                    break
+                }
             }
         }
         .alert(item: $model.alert) { alert in
@@ -112,6 +130,63 @@ struct LibraryRootView: View {
         }
     }
 
+}
+
+private enum BookExportPresentation {
+    case epub(EPUBExportPresentation)
+    case markdown(MarkdownExportPresentation)
+
+    var data: Data {
+        switch self {
+        case .epub(let presentation):
+            presentation.file.data
+        case .markdown(let presentation):
+            presentation.file.data
+        }
+    }
+
+    var contentType: UTType {
+        switch self {
+        case .epub:
+            EPUBExportDocument.contentType
+        case .markdown:
+            MarkdownExportDocument.contentType
+        }
+    }
+
+    var suggestedFilename: String {
+        switch self {
+        case .epub(let presentation):
+            presentation.file.suggestedFilename
+        case .markdown(let presentation):
+            presentation.file.suggestedFilename
+        }
+    }
+}
+
+private struct BookExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] {
+        [EPUBExportDocument.contentType, MarkdownExportDocument.contentType]
+    }
+
+    static var writableContentTypes: [UTType] { readableContentTypes }
+
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
 }
 
 #if DEBUG

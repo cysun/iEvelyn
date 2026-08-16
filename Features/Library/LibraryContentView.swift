@@ -7,6 +7,7 @@ struct LibraryContentView: View {
     let onOpenSearchResult: (LibrarySearchResult) -> Void
     let onEditBook: (LibraryBook) -> Void
     let onExportBook: (LibraryBook) -> Void
+    let onExportMarkdown: (LibraryBook) -> Void
 
     @State private var permanentDeletionCandidate: LibraryBook?
 
@@ -284,6 +285,8 @@ struct LibraryContentView: View {
             onEditBook(book)
         case .exportEPUB:
             onExportBook(book)
+        case .exportMarkdown:
+            onExportMarkdown(book)
         case .toggleFavorite:
             Task {
                 await model.toggleFavorite(for: book)

@@ -1,5 +1,6 @@
 import Observation
 import SwiftUI
+import UniformTypeIdentifiers
 
 nonisolated enum LibraryLaunchMode: Equatable, Sendable {
     case production
@@ -31,6 +32,7 @@ final class LibraryApplicationModel {
     private(set) var repository: (any LibraryRepository)?
     private(set) var isLoading = true
     private(set) var loadErrorMessage: String?
+    private(set) var isPerformingInterchange = false
     var alert: LibraryApplicationAlert?
 
     private let launchConfiguration: LibraryLaunchConfiguration
@@ -87,6 +89,146 @@ final class LibraryApplicationModel {
         repository = nil
         didBeginLoading = false
         await loadLibraryIfNeeded()
+    }
+
+    func prepareLibraryBackup() async -> LibraryBackupPresentation? {
+        guard !isPerformingInterchange,
+              let repository = repository as? GRDBLibraryRepository else {
+            return nil
+        }
+        isPerformingInterchange = true
+        defer { isPerformingInterchange = false }
+
+        do {
+            let file = try await LibraryInterchangeService(repository: repository).createBackup()
+            return LibraryBackupPresentation(file: file)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            alert = LibraryApplicationAlert(
+                title: "Could Not Back Up Library",
+                message: error.localizedDescription
+            )
+            return nil
+        }
+    }
+
+    func reportBackupWriteFailure(_ error: Error) {
+        alert = LibraryApplicationAlert(
+            title: "Could Not Save Library Backup",
+            message: error.localizedDescription
+        )
+    }
+
+    func checkAndRepairLibrary() async {
+        guard !isPerformingInterchange,
+              let repository = repository as? GRDBLibraryRepository else {
+            return
+        }
+        isPerformingInterchange = true
+        defer { isPerformingInterchange = false }
+
+        do {
+            let report = try await LibraryInterchangeService(repository: repository)
+                .checkAndRepairIntegrity()
+            alert = LibraryApplicationAlert(
+                title: report.isHealthy ? "Library Is Healthy" : "Library Needs Attention",
+                message: report.humanReadableText
+            )
+        } catch is CancellationError {
+            return
+        } catch {
+            alert = LibraryApplicationAlert(
+                title: "Could Not Check Library",
+                message: error.localizedDescription
+            )
+        }
+    }
+
+    func restoreLibrary(from sourceURL: URL) async {
+        guard !isPerformingInterchange,
+              let currentRepository = repository as? GRDBLibraryRepository,
+              let activeDatabaseURL = currentRepository.database.location.databaseURL,
+              currentRepository.database.location.isProduction else {
+            alert = LibraryApplicationAlert(
+                title: "Restore Unavailable",
+                message: LibraryInterchangeError.unavailableForCurrentLibrary.localizedDescription
+            )
+            return
+        }
+        isPerformingInterchange = true
+        defer { isPerformingInterchange = false }
+
+        let service = LibraryInterchangeService(repository: currentRepository)
+        var previousLibraryIsActive = true
+        var preparedRestore: PreparedLibraryRestore?
+        do {
+            let prepared = try await service.prepareRestore(from: sourceURL)
+            preparedRestore = prepared
+            let activeRootURL = activeDatabaseURL.deletingLastPathComponent()
+            repository = nil
+            isLoading = true
+            loadErrorMessage = nil
+            await Task.yield()
+
+            try await currentRepository.database.close()
+            try await service.atomicallySwap(prepared, with: activeRootURL)
+            previousLibraryIsActive = false
+
+            do {
+                let restoredRepository = try await Self.openProductionRepository()
+                repository = restoredRepository
+                isLoading = false
+                await service.discardPreparedRestore(prepared)
+                preparedRestore = nil
+                alert = LibraryApplicationAlert(
+                    title: "Library Restored",
+                    message: "Restored \(prepared.manifest.counts.books) book(s), \(prepared.manifest.counts.chapters) chapter(s), and \(prepared.manifest.counts.assets) asset(s) from a validated backup."
+                )
+            } catch let restoredLibraryError {
+                do {
+                    try await service.atomicallySwap(prepared, with: activeRootURL)
+                    previousLibraryIsActive = true
+                    await service.discardPreparedRestore(prepared)
+                    preparedRestore = nil
+                    repository = try await Self.openProductionRepository()
+                    isLoading = false
+                } catch {
+                    loadErrorMessage = LibraryInterchangeError.atomicSwapFailed.localizedDescription
+                    throw LibraryInterchangeError.atomicSwapFailed
+                }
+                throw restoredLibraryError
+            }
+        } catch is CancellationError {
+            if previousLibraryIsActive, let preparedRestore {
+                await service.discardPreparedRestore(preparedRestore)
+            }
+            if repository == nil {
+                repository = try? await Self.openProductionRepository()
+                isLoading = false
+            }
+        } catch {
+            if previousLibraryIsActive, let preparedRestore {
+                await service.discardPreparedRestore(preparedRestore)
+            }
+            if repository == nil {
+                repository = try? await Self.openProductionRepository()
+                isLoading = false
+            }
+            alert = LibraryApplicationAlert(
+                title: "Could Not Restore Library",
+                message: previousLibraryIsActive
+                    ? "\(error.localizedDescription) The previous library remains active."
+                    : "\(error.localizedDescription) The previous library was preserved in the restore staging area and was not deleted."
+            )
+        }
+    }
+
+    private static func openProductionRepository() async throws -> GRDBLibraryRepository {
+        let repository = GRDBLibraryRepository(database: try await LibraryDatabase.openProduction())
+        try await repository.prepareAssetStorage()
+        _ = try await repository.repairAssetStorage()
+        return repository
     }
 
 #if DEBUG
@@ -171,6 +313,11 @@ nonisolated struct LibraryApplicationAlert: Identifiable, Sendable {
 
 struct LibraryApplicationRootView: View {
     @Bindable var applicationModel: LibraryApplicationModel
+    @State private var interchangeCommand: LibraryInterchangeCommand?
+    @State private var backupPresentation: LibraryBackupPresentation?
+    @State private var isExportingBackup = false
+    @State private var isImportingBackup = false
+    @State private var isConfirmingRestore = false
 
     var body: some View {
         Group {
@@ -202,6 +349,72 @@ struct LibraryApplicationRootView: View {
         .task {
             await applicationModel.loadLibraryIfNeeded()
         }
+        .focusedSceneValue(\.libraryInterchangeCommand, $interchangeCommand)
+        .onChange(of: interchangeCommand) { _, command in
+            guard let command else { return }
+            interchangeCommand = nil
+            switch command {
+            case .createBackup:
+                Task {
+                    guard let presentation = await applicationModel.prepareLibraryBackup() else {
+                        return
+                    }
+                    backupPresentation = presentation
+                    isExportingBackup = true
+                }
+            case .restoreBackup:
+                isConfirmingRestore = true
+            case .checkAndRepair:
+                Task {
+                    await applicationModel.checkAndRepairLibrary()
+                }
+            }
+        }
+        .background {
+            LibraryBackupFileExporter(
+                isPresented: $isExportingBackup,
+                presentation: backupPresentation
+            ) { result in
+                isExportingBackup = false
+                backupPresentation = nil
+                if case .failure(let error) = result,
+                   (error as? CocoaError)?.code != .userCancelled {
+                    applicationModel.reportBackupWriteFailure(error)
+                }
+            }
+        }
+        .fileImporter(
+            isPresented: $isImportingBackup,
+            allowedContentTypes: [LibraryBackupDocument.contentType, .zip],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let sourceURL = urls.first else { return }
+                Task {
+                    await applicationModel.restoreLibrary(from: sourceURL)
+                }
+            case .failure(let error):
+                if (error as? CocoaError)?.code != .userCancelled {
+                    applicationModel.alert = LibraryApplicationAlert(
+                        title: "Could Not Open Library Backup",
+                        message: error.localizedDescription
+                    )
+                }
+            }
+        }
+        .confirmationDialog(
+            "Restore Library?",
+            isPresented: $isConfirmingRestore,
+            titleVisibility: .visible
+        ) {
+            Button("Choose Backup and Restore…", role: .destructive) {
+                isImportingBackup = true
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("The selected backup will replace the current library only after every database, asset, count, and checksum check passes.")
+        }
         .alert(item: $applicationModel.alert) { alert in
             Alert(
                 title: Text(alert.title),
@@ -209,5 +422,23 @@ struct LibraryApplicationRootView: View {
                 dismissButton: .default(Text("OK"))
             )
         }
+    }
+}
+
+private struct LibraryBackupFileExporter: View {
+    @Binding var isPresented: Bool
+    let presentation: LibraryBackupPresentation?
+    let onCompletion: (Result<URL, Error>) -> Void
+
+    var body: some View {
+        Color.clear
+            .fileExporter(
+                isPresented: $isPresented,
+                document: presentation.map { LibraryBackupDocument(data: $0.file.data) },
+                contentType: LibraryBackupDocument.contentType,
+                defaultFilename: presentation?.file.suggestedFilename
+                    ?? "iEvelyn Library",
+                onCompletion: onCompletion
+            )
     }
 }

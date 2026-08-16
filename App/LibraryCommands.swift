@@ -8,6 +8,16 @@ private struct LibraryDestinationFocusedValueKey: FocusedValueKey {
     typealias Value = Binding<LibraryDestination>
 }
 
+nonisolated enum LibraryInterchangeCommand: Equatable, Sendable {
+    case createBackup
+    case restoreBackup
+    case checkAndRepair
+}
+
+private struct LibraryInterchangeCommandFocusedValueKey: FocusedValueKey {
+    typealias Value = Binding<LibraryInterchangeCommand?>
+}
+
 extension FocusedValues {
     var libraryPresentation: Binding<LibraryPresentation>? {
         get { self[LibraryPresentationFocusedValueKey.self] }
@@ -18,11 +28,17 @@ extension FocusedValues {
         get { self[LibraryDestinationFocusedValueKey.self] }
         set { self[LibraryDestinationFocusedValueKey.self] = newValue }
     }
+
+    var libraryInterchangeCommand: Binding<LibraryInterchangeCommand?>? {
+        get { self[LibraryInterchangeCommandFocusedValueKey.self] }
+        set { self[LibraryInterchangeCommandFocusedValueKey.self] = newValue }
+    }
 }
 
 struct LibraryCommands: Commands {
     @FocusedBinding(\.libraryPresentation) private var presentation
     @FocusedBinding(\.libraryDestination) private var destination
+    @FocusedBinding(\.libraryInterchangeCommand) private var interchangeCommand
 
     var body: some Commands {
         CommandMenu("Library") {
@@ -45,6 +61,23 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("2", modifiers: .command)
             .disabled(presentation == nil)
+
+            Divider()
+
+            Button("Back Up Library…") {
+                interchangeCommand = .createBackup
+            }
+            .disabled(interchangeCommand == nil)
+
+            Button("Restore Library…") {
+                interchangeCommand = .restoreBackup
+            }
+            .disabled(interchangeCommand == nil)
+
+            Button("Check Library Integrity") {
+                interchangeCommand = .checkAndRepair
+            }
+            .disabled(interchangeCommand == nil)
         }
     }
 }

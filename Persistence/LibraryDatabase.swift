@@ -122,6 +122,10 @@ nonisolated final class LibraryDatabase: Sendable {
         try await writer.write(updates)
     }
 
+    func close() async throws {
+        try writer.close()
+    }
+
     private static func openDisk(
         at url: URL,
         location: LibraryDatabaseLocation,

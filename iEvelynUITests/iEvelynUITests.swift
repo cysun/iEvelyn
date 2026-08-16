@@ -342,6 +342,49 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 5))
         savePanel.buttons["Cancel"].click()
         XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
+
+        actions.click()
+        let exportMarkdown = app.menuItems["Export Markdown…"]
+        XCTAssertTrue(exportMarkdown.waitForExistence(timeout: 5))
+        exportMarkdown.click()
+
+        XCTAssertTrue(
+            savePanel.waitForExistence(timeout: 10),
+            "Export Markdown should present the system file exporter after reconstruction succeeds."
+        )
+        XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        savePanel.buttons["Cancel"].click()
+        XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testLibraryMenuExposesBackupRestoreAndIntegrityCommands() throws {
+        let app = launchApplication(seedSampleLibrary: true)
+        XCTAssertTrue(app.descendants(matching: .any)["library-sidebar"].waitForExistence(timeout: 10))
+
+        app.menuBars.menuBarItems["Library"].click()
+        let backup = app.menuItems["Back Up Library…"]
+        XCTAssertTrue(backup.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.menuItems["Restore Library…"].exists)
+        XCTAssertTrue(app.menuItems["Check Library Integrity"].exists)
+        backup.click()
+
+        let savePanel = app.sheets.firstMatch
+        XCTAssertTrue(
+            savePanel.waitForExistence(timeout: 10),
+            "Back Up Library should present the system file exporter after snapshot validation."
+        )
+        let filenameField = savePanel.textFields["saveAsNameTextField"]
+        XCTAssertTrue(filenameField.waitForExistence(timeout: 5))
+        let filename = try XCTUnwrap(filenameField.value as? String)
+        XCTAssertTrue(filename.hasSuffix(".ievelynlibrary"))
+        XCTAssertFalse(
+            filename.hasSuffix(".ievelynlibrary.ievelynlibrary"),
+            "The system save panel should append the registered library extension exactly once."
+        )
+        XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        savePanel.buttons["Cancel"].click()
+        XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
     }
 
     @MainActor
