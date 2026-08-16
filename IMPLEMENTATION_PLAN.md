@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 10 — Progress and bookmarks.
-- Implementation status: Step 9A was accepted on 2026-08-16; Step 10 is authorized but has not started.
+- Current milestone: Step 11 — Full-text search and organization.
+- Implementation status: Step 10 was accepted on 2026-08-16; Step 11 has not started.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -473,8 +473,8 @@ Restore reading sessions reliably even when content changes.
 - Track the last-opened book, chapter, last-read time, and overall progress for Currently Reading.
 - Persist the layered semantic anchor described in `PROJECT_CONTEXT.md`.
 - Automatically restore the last reading location.
-- Add manual bookmarks with optional labels; bookmark notes are deferred and have no product UI in this scope.
-- Add a bookmark list with direct navigation, rename, and delete actions.
+- Add unlabeled manual bookmarks immediately from the toolbar, without a metadata-entry dialog.
+- Add a bookmark list with direct navigation and delete actions.
 - Implement quote/context reattachment and graceful fallback after whole-book Replace operations; Append must preserve existing anchors.
 - Define behavior when a bookmarked chapter or block is deleted.
 
@@ -485,7 +485,7 @@ Restore reading sessions reliably even when content changes.
 ### Manual checkpoint
 
 - Stop mid-chapter, quit, relaunch, and verify restoration.
-- Add several optionally labeled bookmarks, rename one, and navigate from the list.
+- Add several bookmarks with one click, navigate from the list, and delete one.
 - Replace the book from a complete content file that inserts content before a saved location and verify reattachment.
 - Replace the book again after removing the exact bookmarked block and verify graceful fallback.
 - Append chapters and confirm anchors in existing chapters remain unchanged.
@@ -499,7 +499,7 @@ Make a substantial library fast to find and organize.
 
 ### Deliverables
 
-- Add SQLite FTS5 indexing for book title/subtitle, authors, chapter titles/content, and tags. Bookmark notes remain outside the current product scope.
+- Add SQLite FTS5 indexing for book title/subtitle, authors, chapter titles/content, and tags. Bookmark labels and notes remain outside the current product scope.
 - Keep the index synchronized transactionally or through tested rebuild logic.
 - Add result snippets, scoped searches, and direct navigation to matching chapters/locations.
 - Add author and tag management with counts and filters.
@@ -694,7 +694,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 8 | Markdown rendering engine | Accepted | `swift-markdown` rendering, separate safe reader HTML and EPUB XHTML output, stable anchors, repository-validated assets, bounded derived caching, and live WebKit preview are implemented; the WebKit-required client-network entitlement is paired with restrictive content-security and navigation policies. Debug/Release builds and all 60 tests (53 unit/integration and seven UI) passed; the manual checkpoint was accepted on 2026-08-15. |
 | 9 | Reading experience | Accepted | Dedicated multi-window reading, continuous WebKit chapter rendering, single native table-of-contents control, boundary navigation, book-wide find, responsive persistent appearance controls, native full screen, safe external links, and quiet controls are implemented. Debug/Release builds and all 70 tests (62 unit/integration and eight UI) passed after the sidebar and resizing corrections; the manual checkpoint was accepted on 2026-08-15. |
 | 9A | Whole-book import and update workflow correction | Accepted | Unified Add/Edit Book defaults to a simple title/single-author/content/cover presentation with preserved optional metadata behind Show More Options; complete/replace/append parsing, transactional book-content changes, and removal of Book Info plus all individual chapter controls are implemented; the More menu uses `Edit Book…`; one routed file importer keeps the content and cover pickers independent; legacy 3:4 covers are explicitly excluded from migration. Debug/Release builds and all 72 tests (64 unit/integration and eight UI) passed; the manual checkpoint was accepted on 2026-08-16. |
-| 10 | Progress and bookmarks | Not started | Bookmark notes are deferred; the existing nullable database field remains reserved without product UI. |
+| 10 | Progress and bookmarks | Accepted | Debounced semantic progress restoration, Currently Reading updates, and one-click unlabeled bookmark create/navigate/delete are implemented. Stable block anchors fall back through quoted text, nearby context, and chapter fraction after whole-book replacement; append preserves existing anchors. Bookmark labels and notes remain outside the product, with their nullable database fields reserved and always written as null by this UI. No schema migration or dependency was added. Debug/Release builds and all 81 tests (72 unit/integration and nine UI) passed; the manual checkpoint was accepted on 2026-08-16. |
 | 11 | Full-text search and organization | Not started | |
 | 12 | EPUB 3 export | Not started | |
 | 13 | Backup, restore, and interchange | Not started | |

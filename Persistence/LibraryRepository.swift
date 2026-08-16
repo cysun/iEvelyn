@@ -29,6 +29,11 @@ nonisolated protocol LibraryRepository: Sendable {
     func assets(forBookID bookID: UUID) async throws -> [Asset]
     func bookAssetPayload(for url: URL) async throws -> LibraryAssetPayload
     func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error>
+    func readingProgress(forBookID bookID: UUID) async throws -> ReadingProgress?
+    func saveReadingProgress(_ progress: ReadingProgress) async throws
+    func observeBookmarks(forBookID bookID: UUID) -> AsyncThrowingStream<[Bookmark], Error>
+    func createBookmark(_ bookmark: Bookmark) async throws
+    func deleteBookmark(id: UUID, bookID: UUID) async throws
     func createChapter(bookID: UUID, title: String, at date: Date) async throws -> UUID
     func renameChapter(id: UUID, title: String, at date: Date) async throws
     func updateChapterMarkdown(
@@ -50,6 +55,7 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
     case chapterPositionLimitReached
     case chapterRevisionLimitReached
     case bookContentRequired
+    case bookmarkNotFound
     case bookNotFound
     case bookIsInTrash
     case permanentDeleteRequiresTrash
@@ -69,6 +75,8 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
             "The chapter could not be saved because its revision limit was reached."
         case .bookContentRequired:
             "A book must contain at least one imported chapter."
+        case .bookmarkNotFound:
+            "The selected bookmark no longer exists."
         case .bookNotFound:
             "The selected book no longer exists."
         case .bookIsInTrash:
@@ -161,6 +169,29 @@ extension LibraryRepository {
         AsyncThrowingStream { continuation in
             continuation.finish(throwing: LibraryRepositoryError.readOnlyRepository)
         }
+    }
+
+    func readingProgress(forBookID bookID: UUID) async throws -> ReadingProgress? {
+        nil
+    }
+
+    func saveReadingProgress(_ progress: ReadingProgress) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    nonisolated func observeBookmarks(forBookID bookID: UUID) -> AsyncThrowingStream<[Bookmark], Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield([])
+            continuation.finish()
+        }
+    }
+
+    func createBookmark(_ bookmark: Bookmark) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func deleteBookmark(id: UUID, bookID: UUID) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
     }
 
     func createChapter(bookID: UUID, title: String, at date: Date) async throws -> UUID {
@@ -261,6 +292,93 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             continuation.onTermination = { _ in
                 task.cancel()
             }
+        }
+    }
+
+    func observeBookmarks(forBookID bookID: UUID) -> AsyncThrowingStream<[Bookmark], Error> {
+        let observation = ValueObservation.tracking { database in
+            try Bookmark.fetchAll(
+                database,
+                sql: """
+                    SELECT * FROM bookmarks
+                    WHERE bookID = ?
+                    ORDER BY createdAt, id
+                    """,
+                arguments: [bookID.databaseString]
+            )
+        }
+        let values = observation.values(
+            in: database.writer,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    for try await bookmarks in values {
+                        continuation.yield(bookmarks)
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    func readingProgress(forBookID bookID: UUID) async throws -> ReadingProgress? {
+        try await database.read { database in
+            try ReadingProgress.fetchOne(database, key: bookID.databaseString)
+        }
+    }
+
+    func saveReadingProgress(_ progress: ReadingProgress) async throws {
+        try await database.write { database in
+            guard var book = try Book.fetchOne(database, key: progress.bookID.databaseString) else {
+                throw LibraryRepositoryError.bookNotFound
+            }
+            guard book.trashedAt == nil else {
+                throw LibraryRepositoryError.bookIsInTrash
+            }
+            if let stored = try ReadingProgress.fetchOne(
+                database,
+                key: progress.bookID.databaseString
+            ), stored.lastReadAt > progress.lastReadAt {
+                return
+            }
+
+            try progress.save(database)
+            if book.lastOpenedAt.map({ $0 < progress.lastReadAt }) ?? true {
+                book.lastOpenedAt = progress.lastReadAt
+                try book.update(database)
+            }
+        }
+    }
+
+    func createBookmark(_ bookmark: Bookmark) async throws {
+        try await database.write { database in
+            _ = try Self.fetchEditableBook(id: bookmark.bookID, database: database)
+            var bookmark = bookmark
+            bookmark.label = nil
+            bookmark.note = nil
+            try bookmark.insert(database)
+        }
+    }
+
+    func deleteBookmark(id: UUID, bookID: UUID) async throws {
+        try await database.write { database in
+            guard let bookmark = try Bookmark.fetchOne(database, key: id.databaseString),
+                  bookmark.bookID == bookID else {
+                throw LibraryRepositoryError.bookmarkNotFound
+            }
+            _ = try Self.fetchEditableBook(id: bookID, database: database)
+            _ = try bookmark.delete(database)
         }
     }
 

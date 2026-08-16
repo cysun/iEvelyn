@@ -65,7 +65,13 @@ nonisolated struct MarkdownRenderResult: Equatable, Sendable {
     let document: String
     let cacheKey: MarkdownRenderCacheKey
     let blockIDs: [String]
+    let blocks: [MarkdownRenderedBlock]
     let issues: [MarkdownRenderIssue]
+}
+
+nonisolated struct MarkdownRenderedBlock: Equatable, Hashable, Sendable {
+    let id: String
+    let normalizedText: String
 }
 
 nonisolated protocol MarkdownRendering: Sendable {
@@ -122,6 +128,7 @@ actor MarkdownRenderingService: MarkdownRendering {
             document: renderedDocument,
             cacheKey: cacheKey,
             blockIDs: bodyRenderer.blockIDs,
+            blocks: bodyRenderer.blocks,
             issues: bodyRenderer.issues
         )
         insert(result, for: cacheKey)
@@ -178,6 +185,7 @@ nonisolated private struct ControlledHTMLBodyRenderer: MarkupVisitor {
 
     private(set) var issues: [MarkdownRenderIssue] = []
     private(set) var blockIDs: [String] = []
+    private(set) var blocks: [MarkdownRenderedBlock] = []
     private(set) var wasCancelled = false
     private var blockOccurrences: [String: Int] = [:]
     private var tableAlignments: [Table.ColumnAlignment?] = []
@@ -427,6 +435,12 @@ nonisolated private struct ControlledHTMLBodyRenderer: MarkupVisitor {
             ? "block-\(shortFingerprint)"
             : "block-\(shortFingerprint)-\(occurrence)"
         blockIDs.append(id)
+        blocks.append(
+            MarkdownRenderedBlock(
+                id: id,
+                normalizedText: normalizedAnchorText(PlainTextRenderer.render(markup))
+            )
+        )
         return id
     }
 
@@ -605,6 +619,13 @@ nonisolated private func safeCSSIdentifier(_ value: String) -> String? {
         return nil
     }
     return candidate
+}
+
+nonisolated private func normalizedAnchorText(_ value: String) -> String {
+    value
+        .split(whereSeparator: \Character.isWhitespace)
+        .joined(separator: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 nonisolated private func escapeText(_ value: String) -> String {

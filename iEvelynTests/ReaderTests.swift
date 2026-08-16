@@ -63,6 +63,79 @@ struct ReaderTests {
         #expect(!navigator.canMoveNext)
     }
 
+    @Test("Chapter navigation honors a saved initial chapter")
+    func preferredInitialChapter() {
+        let bookID = UUID()
+        let first = chapter(bookID: bookID, title: "First", position: 0)
+        let second = chapter(bookID: bookID, title: "Second", position: 1)
+        var navigator = ReaderChapterNavigator()
+
+        navigator.updateChapters([first, second], preferredChapterID: second.id)
+        #expect(navigator.selectedChapterID == second.id)
+
+        navigator.updateChapters([first, second], preferredChapterID: first.id)
+        #expect(navigator.selectedChapterID == second.id)
+    }
+
+    @Test("Semantic anchors use stable IDs, quotes, nearby context, then fractions")
+    func semanticAnchorResolution() {
+        let originalBlocks = [
+            MarkdownRenderedBlock(id: "opening", normalizedText: "Opening context"),
+            MarkdownRenderedBlock(id: "saved", normalizedText: "The exact saved paragraph"),
+            MarkdownRenderedBlock(id: "following", normalizedText: "Following context"),
+        ]
+        let anchor = ReaderSemanticAnchor.make(
+            from: ReaderLocationCapture(stableBlockID: "saved", fractionInChapter: 0.4),
+            blocks: originalBlocks
+        )
+
+        #expect(anchor.textQuote == "The exact saved paragraph")
+        #expect(anchor.contextBefore == "Opening context")
+        #expect(anchor.contextAfter == "Following context")
+        #expect(ReaderSemanticAnchor.resolve(anchor, in: originalBlocks).strategy == .stableBlock)
+
+        let changedIDBlocks = [
+            originalBlocks[0],
+            MarkdownRenderedBlock(id: "new-id", normalizedText: "The exact saved paragraph"),
+            originalBlocks[2],
+        ]
+        let quoteResolution = ReaderSemanticAnchor.resolve(anchor, in: changedIDBlocks)
+        #expect(quoteResolution.stableBlockID == "new-id")
+        #expect(quoteResolution.strategy == .textQuote)
+
+        let removedBlockResolution = ReaderSemanticAnchor.resolve(
+            anchor,
+            in: [originalBlocks[0], originalBlocks[2]]
+        )
+        #expect(removedBlockResolution.stableBlockID == "following")
+        #expect(removedBlockResolution.strategy == .nearbyContext)
+
+        let fractionResolution = ReaderSemanticAnchor.resolve(
+            ReaderLocationAnchor(fractionInChapter: 0.73),
+            in: originalBlocks
+        )
+        #expect(fractionResolution.stableBlockID == nil)
+        #expect(fractionResolution.fractionInChapter == 0.73)
+        #expect(fractionResolution.strategy == .fraction)
+    }
+
+    @Test("Overall progress maps chapter fractions and fallback chapters")
+    func progressCalculations() {
+        #expect(ReaderProgressCalculator.overallProgress(
+            chapterIndex: 1,
+            chapterCount: 4,
+            fractionInChapter: 0.5
+        ) == 0.375)
+        #expect(ReaderProgressCalculator.overallProgress(
+            chapterIndex: 99,
+            chapterCount: 4,
+            fractionInChapter: 2
+        ) == 1)
+        #expect(ReaderProgressCalculator.chapterIndex(for: 0.62, chapterCount: 4) == 2)
+        #expect(ReaderProgressCalculator.chapterIndex(for: 1, chapterCount: 4) == 3)
+        #expect(ReaderProgressCalculator.chapterIndex(for: 0.5, chapterCount: 0) == nil)
+    }
+
     @Test("Find in Book matches titles and content with useful chapter snippets")
     func findInBook() {
         let bookID = UUID()
@@ -231,6 +304,53 @@ struct ReaderTests {
         #expect(probe.decisions == [.allowTrustedDocument])
     }
 
+    @MainActor
+    @Test("App-owned location calls work while book content JavaScript stays disabled")
+    func webKitLocationCaptureAndRestore() async throws {
+        let loader = BookAssetDataLoader(repository: ReaderProbeRepository())
+        let page = WebPage(
+            configuration: BookContentWebConfiguration.make(assetLoader: loader),
+            navigationDecider: ReaderProbeNavigationDecider(probe: ReaderNavigationProbe())
+        )
+        let document = """
+            <html><head><style>
+            body { margin: 0; }
+            .spacer { height: 900px; }
+            #saved { height: 400px; }
+            </style></head><body><main class="chapter">
+            <div id="top" class="spacer">Top</div>
+            <div id="saved">Saved location</div>
+            <div id="bottom" class="spacer">Bottom</div>
+            </main></body></html>
+            """
+        for try await _ in page.load(html: document) {}
+
+        let didFindBlock = try await ReaderWebLocationBridge.restore(
+            ReaderResolvedLocation(
+                stableBlockID: "saved",
+                fractionInChapter: 0,
+                strategy: .stableBlock
+            ),
+            in: page
+        )
+        #expect(didFindBlock)
+        let captured = try await ReaderWebLocationBridge.capture(from: page)
+        #expect(captured.stableBlockID == "saved")
+        #expect(captured.fractionInChapter > 0.25)
+
+        let usedFraction = try await ReaderWebLocationBridge.restore(
+            ReaderResolvedLocation(
+                stableBlockID: "missing",
+                fractionInChapter: 0.8,
+                strategy: .fraction
+            ),
+            in: page
+        )
+        #expect(!usedFraction)
+        let fractionalCapture = try await ReaderWebLocationBridge.capture(from: page)
+        #expect(fractionalCapture.fractionInChapter > 0.7)
+    }
+
     private func chapter(bookID: UUID, title: String, position: Int) -> Chapter {
         Chapter(
             bookID: bookID,
@@ -262,6 +382,7 @@ private struct ReaderProbeNavigationDecider: WebPage.NavigationDeciding {
         for action: WebPage.NavigationAction,
         preferences: inout WebPage.NavigationPreferences
     ) async -> WKNavigationActionPolicy {
+        preferences.allowsContentJavaScript = false
         probe.record(action)
         return .allow
     }

@@ -46,6 +46,8 @@ struct MarkdownRenderingTests {
         #expect(result.document.contains("Footnotes are deliberately literal"))
         #expect(Set(result.blockIDs).count == result.blockIDs.count)
         #expect(result.blockIDs.count >= 12)
+        #expect(result.blocks.map(\.id) == result.blockIDs)
+        #expect(result.blocks.contains { $0.normalizedText.contains("章节, café, naïve") })
     }
 
     @Test("Raw HTML, unsafe URLs, remote images, and malformed input fail safely")
@@ -124,6 +126,7 @@ struct MarkdownRenderingTests {
         #expect(epub.document.contains("<hr id=") && epub.document.contains(" />"))
         #expect(!epub.document.contains("Content-Security-Policy"))
         #expect(reader.blockIDs == epub.blockIDs)
+        #expect(reader.blocks == epub.blocks)
         #expect(reader.issues == [.unavailableImage])
         #expect(epub.issues == [.unavailableImage])
         #expect(parseXML(epub.document) == nil)

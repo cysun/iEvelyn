@@ -242,7 +242,10 @@ nonisolated struct ReaderChapterNavigator: Equatable, Sendable {
         return selectedIndex < chapters.index(before: chapters.endIndex)
     }
 
-    mutating func updateChapters(_ observedChapters: [Chapter]) {
+    mutating func updateChapters(
+        _ observedChapters: [Chapter],
+        preferredChapterID: Chapter.ID? = nil
+    ) {
         chapters = observedChapters.sorted {
             if $0.position != $1.position {
                 return $0.position < $1.position
@@ -253,7 +256,12 @@ nonisolated struct ReaderChapterNavigator: Equatable, Sendable {
         if let selectedChapterID, chapters.contains(where: { $0.id == selectedChapterID }) {
             return
         }
-        selectedChapterID = chapters.first?.id
+        if let preferredChapterID,
+           chapters.contains(where: { $0.id == preferredChapterID }) {
+            selectedChapterID = preferredChapterID
+        } else {
+            selectedChapterID = chapters.first?.id
+        }
     }
 
     @discardableResult

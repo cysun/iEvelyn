@@ -50,9 +50,11 @@ struct ReaderApplicationRootView: View {
 struct ReaderView: View {
     @State private var model: ReaderViewModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var sidebarMode: ReaderSidebarMode = .contents
     @State private var isFindPresented = false
     @State private var findQuery = ""
     @State private var isAppearancePresented = false
+    @State private var bookmarkPendingDeletion: Bookmark?
 
     let settings: ReaderSettingsStore
 
@@ -76,7 +78,7 @@ struct ReaderView: View {
         let renderRequestID = model.renderRequestID(for: preferences)
 
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            tableOfContents
+            readerSidebar
                 .navigationSplitViewColumnWidth(min: 190, ideal: 240, max: 340)
         } detail: {
             readerContent(preferences: preferences, renderRequestID: renderRequestID)
@@ -94,6 +96,61 @@ struct ReaderView: View {
         .task(id: renderRequestID) {
             await model.renderSelectedChapter(preferences: preferences)
         }
+        .onDisappear {
+            Task { await model.flushReadingProgress() }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let persistenceErrorMessage = model.persistenceErrorMessage {
+                HStack(spacing: 10) {
+                    Label(persistenceErrorMessage, systemImage: "exclamationmark.triangle")
+                        .lineLimit(2)
+                    Spacer()
+                    Button("Dismiss") {
+                        model.clearPersistenceError()
+                    }
+                }
+                .font(.callout)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.bar)
+                .accessibilityIdentifier("reader-persistence-error")
+            }
+        }
+        .confirmationDialog(
+            "Delete Bookmark?",
+            isPresented: deleteBookmarkIsPresented,
+            titleVisibility: .visible,
+            presenting: bookmarkPendingDeletion
+        ) { bookmark in
+            Button("Delete Bookmark", role: .destructive) {
+                Task { _ = await model.deleteBookmark(bookmark) }
+            }
+            .accessibilityIdentifier("reader-bookmark-confirm-delete")
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This removes the saved location from this book.")
+        }
+    }
+
+    private var readerSidebar: some View {
+        VStack(spacing: 0) {
+            Picker("Reader Sidebar", selection: $sidebarMode) {
+                ForEach(ReaderSidebarMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(10)
+            .accessibilityIdentifier("reader-sidebar-mode")
+
+            switch sidebarMode {
+            case .contents:
+                tableOfContents
+            case .bookmarks:
+                bookmarkList
+            }
+        }
     }
 
     private var tableOfContents: some View {
@@ -109,6 +166,65 @@ struct ReaderView: View {
         }
         .accessibilityLabel("Table of Contents")
         .accessibilityIdentifier("reader-table-of-contents")
+    }
+
+    private var bookmarkList: some View {
+        List {
+            if model.bookmarks.isEmpty {
+                ContentUnavailableView {
+                    Label("No Bookmarks", systemImage: "bookmark")
+                } description: {
+                    Text("Add a bookmark from the reader toolbar to save this location.")
+                }
+                .accessibilityIdentifier("reader-bookmarks-empty")
+            } else {
+                ForEach(model.bookmarks) { bookmark in
+                    HStack(spacing: 8) {
+                        Button {
+                            model.navigate(to: bookmark)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(model.bookmarkTitle(bookmark))
+                                    .font(.headline)
+                                    .lineLimit(2)
+                                HStack(spacing: 4) {
+                                    Text(model.chapterTitle(for: bookmark))
+                                    if let fraction = bookmark.fractionInChapter {
+                                        Text(fraction, format: .percent.precision(.fractionLength(0)))
+                                    }
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(
+                            "\(model.bookmarkTitle(bookmark)), \(model.chapterTitle(for: bookmark))"
+                        )
+                        .accessibilityIdentifier(
+                            "reader-bookmark-location-\(bookmark.id.databaseString)"
+                        )
+
+                        Button {
+                            bookmarkPendingDeletion = bookmark
+                        } label: {
+                            Image(systemName: "trash")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Delete Bookmark")
+                        .accessibilityLabel("Delete bookmark at \(model.bookmarkTitle(bookmark))")
+                        .accessibilityIdentifier(
+                            "reader-bookmark-delete-\(bookmark.id.databaseString)"
+                        )
+                    }
+                }
+            }
+        }
+        .accessibilityLabel("Bookmarks")
+        .accessibilityIdentifier("reader-bookmarks")
     }
 
     private var chapterSelection: Binding<Chapter.ID?> {
@@ -164,7 +280,15 @@ struct ReaderView: View {
                 ReaderWebView(
                     document: renderedChapter.document,
                     loadID: renderRequestID,
-                    assetLoader: model.assetLoader
+                    assetLoader: model.assetLoader,
+                    restorationLocation: model.restorationLocation(for: renderedChapter),
+                    bookmarkNavigation: model.resolvedBookmarkNavigation(for: renderedChapter),
+                    onLocationChange: { location in
+                        model.recordLocation(location, chapterID: renderedChapter.chapterID)
+                    },
+                    onBookmarkNavigationCompleted: { navigationID in
+                        model.completeBookmarkNavigation(id: navigationID)
+                    }
                 )
 
                 if !renderedChapter.issues.isEmpty {
@@ -216,6 +340,20 @@ struct ReaderView: View {
             .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
             .help("Next Chapter (Command-Option-Right Arrow)")
             .accessibilityIdentifier("reader-next-chapter")
+
+            Button {
+                Task {
+                    if await model.addBookmark() {
+                        sidebarMode = .bookmarks
+                    }
+                }
+            } label: {
+                Label("Add Bookmark", systemImage: "bookmark")
+            }
+            .disabled(model.selectedChapter == nil || model.renderedChapter == nil)
+            .keyboardShortcut("b", modifiers: .command)
+            .help("Add Bookmark (Command-B)")
+            .accessibilityIdentifier("reader-add-bookmark")
 
             Button {
                 isFindPresented.toggle()
@@ -278,6 +416,31 @@ struct ReaderView: View {
         .disabled(model.chapters.isEmpty)
         .help("Jump to Chapter")
         .accessibilityIdentifier("reader-chapter-jump")
+    }
+
+    private var deleteBookmarkIsPresented: Binding<Bool> {
+        Binding(
+            get: { bookmarkPendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented { bookmarkPendingDeletion = nil }
+            }
+        )
+    }
+}
+
+private enum ReaderSidebarMode: String, CaseIterable, Identifiable {
+    case contents
+    case bookmarks
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .contents:
+            "Contents"
+        case .bookmarks:
+            "Bookmarks"
+        }
     }
 }
 

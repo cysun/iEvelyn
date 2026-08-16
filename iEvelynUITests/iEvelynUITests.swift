@@ -339,8 +339,20 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Ending body."].waitForExistence(timeout: 10))
         app.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
-        book.click()
-        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 10))
+
+        let currentlyReading = app.descendants(matching: .any)["sidebar-currentlyReading"]
+        XCTAssertTrue(currentlyReading.waitForExistence(timeout: 5))
+        currentlyReading.click()
+        let currentlyReadingBook = app.buttons["Chapter Workflow, by Test Author"]
+        XCTAssertTrue(
+            currentlyReadingBook.waitForExistence(timeout: 5),
+            "A saved location should place the book in Currently Reading."
+        )
+        currentlyReadingBook.click()
+        XCTAssertTrue(
+            app.staticTexts["Ending body."].waitForExistence(timeout: 10),
+            "Reopening the reader should restore the last chapter."
+        )
         let reopenedTableOfContents = app.descendants(matching: .any)["reader-table-of-contents"]
         XCTAssertTrue(
             reopenedTableOfContents.descendants(matching: .staticText)["Opening"]
@@ -349,6 +361,62 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(
             reopenedTableOfContents.descendants(matching: .staticText)["Ending"]
                 .waitForExistence(timeout: 5)
+        )
+    }
+
+    @MainActor
+    func testReaderAddsNavigatesAndDeletesUnlabeledBookmark() throws {
+        let app = launchApplication(
+            seedSampleLibrary: false,
+            bookContent: """
+            # Bookmark Workflow
+            ### Test Author
+            ## Opening
+
+            A location worth returning to.
+            """
+        )
+
+        app.descendants(matching: .any)["library-add-book"].click()
+        let title = app.textFields["book-editor-title"]
+        let author = app.textFields["book-editor-author-0"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.click()
+        title.typeText("Bookmark Workflow")
+        author.click()
+        author.typeText("Test Author")
+        app.descendants(matching: .any)["book-editor-save"].click()
+
+        let book = app.buttons["Bookmark Workflow, by Test Author"]
+        XCTAssertTrue(book.waitForExistence(timeout: 10))
+        book.click()
+        XCTAssertTrue(app.staticTexts["A location worth returning to."].waitForExistence(timeout: 10))
+
+        let addBookmark = app.descendants(matching: .any)["reader-add-bookmark"]
+        XCTAssertTrue(addBookmark.waitForExistence(timeout: 5))
+        addBookmark.click()
+        XCTAssertFalse(app.alerts["Add Bookmark"].exists)
+        XCTAssertFalse(app.textFields["Label (Optional)"].exists)
+        XCTAssertFalse(app.textFields["Note"].exists)
+
+        XCTAssertTrue(app.descendants(matching: .any)["reader-bookmarks"].waitForExistence(timeout: 5))
+        let bookmarkLocation = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "reader-bookmark-location-")
+        ).firstMatch
+        XCTAssertTrue(bookmarkLocation.waitForExistence(timeout: 5))
+        bookmarkLocation.click()
+        XCTAssertTrue(app.staticTexts["A location worth returning to."].waitForExistence(timeout: 5))
+
+        let deleteBookmark = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "reader-bookmark-delete-")
+        ).firstMatch
+        XCTAssertTrue(deleteBookmark.waitForExistence(timeout: 5))
+        deleteBookmark.click()
+        let confirmDelete = app.descendants(matching: .any)["reader-bookmark-confirm-delete"]
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
+        confirmDelete.click()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["reader-bookmarks-empty"].waitForExistence(timeout: 5)
         )
     }
 
