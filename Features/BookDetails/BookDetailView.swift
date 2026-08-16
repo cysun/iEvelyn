@@ -3,6 +3,7 @@ import SwiftUI
 struct BookDetailView: View {
     let book: LibraryBook?
     let chapterModel: ChapterManagementViewModel
+    let chapterEditorModel: ChapterEditorViewModel
     let isBusy: Bool
     let loadCoverImage: (Asset) async throws -> Data
     let onCoverLoadError: (Error) -> Void
@@ -51,6 +52,7 @@ struct BookDetailView: View {
 
                     ChapterManagementView(
                         model: chapterModel,
+                        editorModel: chapterEditorModel,
                         isReadOnly: book.isTrashed
                     )
 

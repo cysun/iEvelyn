@@ -71,18 +71,25 @@ struct LibraryRootView: View {
                 BookDetailView(
                     book: model.book(id: presentation.id),
                     chapterModel: presentation.chapterModel,
+                    chapterEditorModel: presentation.chapterEditorModel,
                     isBusy: model.isPerformingOperation,
                     loadCoverImage: model.loadCoverImage,
                     onCoverLoadError: model.reportCoverLoadFailure,
                     onEdit: { book in
-                        presentEditorAfterClosingBookInfo(for: book)
+                        Task {
+                            guard await presentation.chapterEditorModel.flushPendingSave() else { return }
+                            presentEditorAfterClosingBookInfo(for: book)
+                        }
                     },
                     onToggleFavorite: { book in
                         Task { await model.toggleFavorite(for: book) }
                     },
                     onMoveToTrash: { book in
-                        bookInfoPresentation = nil
-                        Task { await model.moveToTrash(book) }
+                        Task {
+                            guard await presentation.chapterEditorModel.flushPendingSave() else { return }
+                            bookInfoPresentation = nil
+                            await model.moveToTrash(book)
+                        }
                     },
                     onRestore: { book in
                         bookInfoPresentation = nil
@@ -103,13 +110,17 @@ struct LibraryRootView: View {
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Close") {
-                            bookInfoPresentation = nil
+                            Task {
+                                guard await presentation.chapterEditorModel.flushPendingSave() else { return }
+                                bookInfoPresentation = nil
+                            }
                         }
                         .keyboardShortcut(.cancelAction)
                     }
                 }
             }
             .frame(minWidth: 580, idealWidth: 680, minHeight: 640, idealHeight: 760)
+            .interactiveDismissDisabled(presentation.chapterEditorModel.shouldPreventDismissal)
         }
         .sheet(item: $readerPresentation) { presentation in
             VStack(spacing: 18) {
@@ -173,7 +184,8 @@ struct LibraryRootView: View {
     private func showBookInfo(_ book: LibraryBook) {
         bookInfoPresentation = BookInfoPresentation(
             id: book.id,
-            chapterModel: model.makeChapterManagementModel(for: book.id)
+            chapterModel: model.makeChapterManagementModel(for: book.id),
+            chapterEditorModel: model.makeChapterEditorModel()
         )
     }
 }
@@ -181,6 +193,7 @@ struct LibraryRootView: View {
 private struct BookInfoPresentation: Identifiable {
     let id: LibraryBook.ID
     let chapterModel: ChapterManagementViewModel
+    let chapterEditorModel: ChapterEditorViewModel
 }
 
 private struct ReaderPresentation: Identifiable {

@@ -181,6 +181,22 @@ nonisolated struct Chapter: Codable, Identifiable, Equatable, Sendable {
 
 extension Chapter {
     nonisolated var wordCount: Int {
+        ChapterTextMetrics.wordCount(in: markdown)
+    }
+}
+
+nonisolated struct ChapterTextMetrics: Equatable, Sendable {
+    let wordCount: Int
+    let characterCount: Int
+
+    init(markdown: String) {
+        wordCount = Self.wordCount(in: markdown)
+        characterCount = markdown.count
+    }
+
+    static let zero = ChapterTextMetrics(markdown: "")
+
+    fileprivate static func wordCount(in markdown: String) -> Int {
         markdown.split { character in
             guard !character.isLetter, !character.isNumber else { return false }
             return character != "'" && character != "’"

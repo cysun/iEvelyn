@@ -16,6 +16,12 @@ nonisolated protocol LibraryRepository: Sendable {
     func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error>
     func createChapter(bookID: UUID, title: String, at date: Date) async throws -> UUID
     func renameChapter(id: UUID, title: String, at date: Date) async throws
+    func updateChapterMarkdown(
+        id: UUID,
+        markdown: String,
+        expectedRenderRevision: Int,
+        at date: Date
+    ) async throws -> Chapter
     func duplicateChapter(id: UUID, at date: Date) async throws -> UUID
     func deleteChapter(id: UUID, at date: Date) async throws -> ChapterDeletion
     func restoreChapterDeletion(_ deletion: ChapterDeletion, at date: Date) async throws
@@ -27,6 +33,7 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
     case chapterNotFound
     case chapterAlreadyExists
     case chapterPositionLimitReached
+    case chapterRevisionLimitReached
     case bookNotFound
     case bookIsInTrash
     case permanentDeleteRequiresTrash
@@ -42,6 +49,8 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
             "The deleted chapter has already been restored."
         case .chapterPositionLimitReached:
             "The chapter order could not be changed because its stored positions are out of range."
+        case .chapterRevisionLimitReached:
+            "The chapter could not be saved because its revision limit was reached."
         case .bookNotFound:
             "The selected book no longer exists."
         case .bookIsInTrash:
@@ -51,6 +60,14 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
         case .readOnlyRepository:
             "This library is read-only."
         }
+    }
+}
+
+nonisolated struct ChapterRevisionConflict: LocalizedError, Equatable, Sendable {
+    let storedChapter: Chapter
+
+    var errorDescription: String? {
+        "This chapter changed in another window. Reload that version or explicitly overwrite it with this draft."
     }
 }
 
@@ -106,6 +123,15 @@ extension LibraryRepository {
     }
 
     func renameChapter(id: UUID, title: String, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func updateChapterMarkdown(
+        id: UUID,
+        markdown: String,
+        expectedRenderRevision: Int,
+        at date: Date
+    ) async throws -> Chapter {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
@@ -535,6 +561,41 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
             book.updatedAt = date
             try book.update(database)
+        }
+    }
+
+    func updateChapterMarkdown(
+        id: UUID,
+        markdown: String,
+        expectedRenderRevision: Int,
+        at date: Date = .now
+    ) async throws -> Chapter {
+        try await database.write { database in
+            guard var chapter = try Chapter.fetchOne(database, key: id.databaseString) else {
+                throw LibraryRepositoryError.chapterNotFound
+            }
+            var book = try Self.fetchEditableBook(id: chapter.bookID, database: database)
+
+            if chapter.markdown == markdown {
+                return chapter
+            }
+            guard chapter.renderRevision == expectedRenderRevision else {
+                throw ChapterRevisionConflict(storedChapter: chapter)
+            }
+            let (nextRevision, overflowed) = chapter.renderRevision.addingReportingOverflow(1)
+            guard !overflowed else {
+                throw LibraryRepositoryError.chapterRevisionLimitReached
+            }
+
+            chapter.markdown = markdown
+            chapter.renderRevision = nextRevision
+            chapter.sourceHash = nil
+            chapter.updatedAt = date
+            try chapter.update(database)
+
+            book.updatedAt = date
+            try book.update(database)
+            return chapter
         }
     }
 

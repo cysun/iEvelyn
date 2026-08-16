@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 7 — Markdown chapter editor.
-- Implementation status: in progress; Step 6 was accepted on 2026-08-15.
+- Current milestone: Step 8 — Markdown rendering engine.
+- Implementation status: in progress; Step 7 was accepted on 2026-08-15.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -648,8 +648,8 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 4A | Reader-first library navigation redesign | Accepted | Debug and Release builds, 24 unit/integration tests, and five UI tests passed; reader-first grid/list design, streamlined metadata, and text-led list accepted on 2026-08-15. |
 | 5 | Cover and asset storage | Accepted | JPEG/PNG/HEIC import, UUID-addressed originals, cached thumbnails, safe asset URLs, replace/remove, orphan repair, and permanent cleanup implemented without a schema change or dependency; Debug/Release builds and all 38 tests pass; manual checkpoint accepted on 2026-08-15. |
 | 6 | Chapter management | Accepted | Transactional add, rename, duplicate, delete/undo, and reorder preserve stable chapter identities and report live chapter/word counts; Debug/Release builds, 38 unit/integration tests, and six UI tests passed; manual checkpoint accepted on 2026-08-15. |
-| 7 | Markdown chapter editor | In progress | |
-| 8 | Markdown rendering engine | Not started | |
+| 7 | Markdown chapter editor | Accepted | Native Markdown source editing, ordered debounced autosave with optimistic conflict recovery, UTF-8 Markdown/plain-text import, undo/find/edit commands, live counts, and the Step 8 preview placeholder are implemented; Debug/Release builds and all 54 tests (47 unit/integration and seven UI) passed; manual checkpoint accepted on 2026-08-15. |
+| 8 | Markdown rendering engine | In progress | |
 | 9 | Reading experience | Not started | |
 | 10 | Progress, bookmarks, and notes | Not started | |
 | 11 | Full-text search and organization | Not started | |

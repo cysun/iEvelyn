@@ -2,13 +2,19 @@ import SwiftUI
 
 struct ChapterManagementView: View {
     @State private var model: ChapterManagementViewModel
+    @State private var editorModel: ChapterEditorViewModel
     let isReadOnly: Bool
 
     @State private var titleEditor: ChapterTitleEditorConfiguration?
     @State private var deletionCandidate: Chapter?
 
-    init(model: ChapterManagementViewModel, isReadOnly: Bool) {
+    init(
+        model: ChapterManagementViewModel,
+        editorModel: ChapterEditorViewModel,
+        isReadOnly: Bool
+    ) {
         _model = State(initialValue: model)
+        _editorModel = State(initialValue: editorModel)
         self.isReadOnly = isReadOnly
     }
 
@@ -99,6 +105,7 @@ struct ChapterManagementView: View {
                 onSave: { title in
                     titleEditor = nil
                     Task {
+                        guard await editorModel.flushPendingSave() else { return }
                         switch configuration.mode {
                         case .add:
                             await model.createChapter(title: title)
@@ -108,32 +115,6 @@ struct ChapterManagementView: View {
                     }
                 }
             )
-        }
-        .confirmationDialog(
-            deletionTitle,
-            isPresented: Binding(
-                get: { deletionCandidate != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        deletionCandidate = nil
-                    }
-                }
-            ),
-            titleVisibility: .visible,
-            presenting: deletionCandidate
-        ) { chapter in
-            Button("Delete Chapter", role: .destructive) {
-                deletionCandidate = nil
-                Task {
-                    await model.deleteChapter(id: chapter.id)
-                }
-            }
-            .accessibilityIdentifier("chapter-confirm-delete")
-            Button("Cancel", role: .cancel) {
-                deletionCandidate = nil
-            }
-        } message: { chapter in
-            Text("“\(chapter.title)” can be restored with Undo while this Book Info window remains open.")
         }
         .alert(item: $model.alert) { alert in
             Alert(
@@ -171,7 +152,10 @@ struct ChapterManagementView: View {
     @ViewBuilder
     private func chapterRow(_ chapter: Chapter, number: Int) -> some View {
         let row = Button {
-            model.select(chapter.id)
+            Task {
+                guard await editorModel.activate(chapter) else { return }
+                model.select(chapter.id)
+            }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "line.3.horizontal")
@@ -268,9 +252,11 @@ struct ChapterManagementView: View {
                 }
             }
 
-            Text("Chapter source editing arrives in Step 7.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            MarkdownChapterEditorView(
+                model: editorModel,
+                chapter: chapter,
+                isReadOnly: isReadOnly
+            )
 
             if !isReadOnly {
                 HStack {
@@ -280,7 +266,10 @@ struct ChapterManagementView: View {
                     .accessibilityIdentifier("chapter-rename")
 
                     Button("Duplicate", systemImage: "plus.square.on.square") {
-                        Task { await model.duplicateSelectedChapter() }
+                        Task {
+                            guard await editorModel.flushPendingSave() else { return }
+                            await model.duplicateSelectedChapter()
+                        }
                     }
                     .accessibilityIdentifier("chapter-duplicate")
 
@@ -290,6 +279,33 @@ struct ChapterManagementView: View {
                         deletionCandidate = chapter
                     }
                     .accessibilityIdentifier("chapter-delete")
+                    .confirmationDialog(
+                        deletionTitle,
+                        isPresented: Binding(
+                            get: { deletionCandidate != nil },
+                            set: { isPresented in
+                                if !isPresented {
+                                    deletionCandidate = nil
+                                }
+                            }
+                        ),
+                        titleVisibility: .visible,
+                        presenting: deletionCandidate
+                    ) { chapter in
+                        Button("Delete Chapter", role: .destructive) {
+                            deletionCandidate = nil
+                            Task {
+                                guard await editorModel.flushPendingSave() else { return }
+                                await model.deleteChapter(id: chapter.id)
+                            }
+                        }
+                        .accessibilityIdentifier("chapter-confirm-delete")
+                        Button("Cancel", role: .cancel) {
+                            deletionCandidate = nil
+                        }
+                    } message: { chapter in
+                        Text("“\(chapter.title)” can be restored with Undo while this Book Info window remains open.")
+                    }
                 }
                 .buttonStyle(.bordered)
                 .disabled(model.isPerformingOperation)
@@ -306,7 +322,10 @@ struct ChapterManagementView: View {
                 .lineLimit(1)
             Spacer()
             Button("Undo") {
-                Task { await model.undoLastDeletion() }
+                Task {
+                    guard await editorModel.flushPendingSave() else { return }
+                    await model.undoLastDeletion()
+                }
             }
             .disabled(model.isPerformingOperation || isReadOnly)
             .accessibilityIdentifier("chapter-undo-delete")

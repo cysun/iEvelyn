@@ -60,6 +60,10 @@ final class LibraryViewModel {
         )
     }
 
+    func makeChapterEditorModel() -> ChapterEditorViewModel {
+        ChapterEditorViewModel(repository: repository, now: now)
+    }
+
     func loadCoverImage(for asset: Asset) async throws -> Data {
         let cacheKey = asset.id as NSUUID
         if let cachedData = coverCache.object(forKey: cacheKey) {

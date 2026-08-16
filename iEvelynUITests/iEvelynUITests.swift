@@ -279,9 +279,9 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertFalse(moveUp.isEnabled, "The first chapter should be selected when Book Info reopens.")
         XCTAssertEqual(app.descendants(matching: .any)["chapter-summary"].value as? String, "2 Chapters • 0 words")
 
-        bookInfoScroll.swipeUp()
         let delete = app.descendants(matching: .any)["chapter-delete"]
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        scroll(delete, intoViewUsing: bookInfoScroll, velocity: .slow)
         delete.click()
         let confirmDelete = app.descendants(matching: .any)["chapter-confirm-delete"]
         XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
@@ -289,6 +289,50 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(ending.waitForNonExistence(timeout: 5))
         XCTAssertTrue(opening.exists)
         XCTAssertEqual(app.descendants(matching: .any)["chapter-summary"].value as? String, "1 Chapter • 0 words")
+    }
+
+    @MainActor
+    func testMarkdownEditorAutosavesAndPersists() throws {
+        let app = launchApplication(seedSampleLibrary: false)
+
+        app.descendants(matching: .any)["library-add-book"].click()
+        let title = app.textFields["book-editor-title"]
+        let author = app.textFields["book-editor-author-0"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.click()
+        title.typeText("Editor Workflow")
+        author.click()
+        author.typeText("Test Author")
+        app.descendants(matching: .any)["book-editor-save"].click()
+
+        let actions = app.descendants(matching: .any)["Actions for Editor Workflow"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        openBookInfo(using: actions, in: app)
+
+        let addChapter = app.descendants(matching: .any)["chapter-add"]
+        XCTAssertTrue(addChapter.waitForExistence(timeout: 5))
+        addChapter.click()
+        enterChapterTitle("Opening", in: app)
+
+        let bookInfoScroll = app.scrollViews["book-info-scroll"]
+        let editor = app.textViews["chapter-markdown-editor"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        scroll(editor, intoViewUsing: bookInfoScroll)
+        editor.click()
+        editor.typeText("# Opening\n\nHello Unicode chapter")
+
+        XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["4 words"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Preview Arrives in Step 8"].exists)
+
+        app.buttons["Close"].click()
+        XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
+        openBookInfo(using: actions, in: app)
+
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        scroll(editor, intoViewUsing: app.scrollViews["book-info-scroll"])
+        XCTAssertEqual(editor.value as? String, "# Opening\n\nHello Unicode chapter")
+        XCTAssertTrue(app.staticTexts["Saved"].exists)
     }
 
     @MainActor
@@ -310,6 +354,18 @@ final class iEvelynUITests: XCTestCase {
             evaluatedWith: upperChapter
         )
         wait(for: [reordered], timeout: 5)
+    }
+
+    @MainActor
+    private func scroll(
+        _ element: XCUIElement,
+        intoViewUsing scrollView: XCUIElement,
+        velocity: XCUIGestureVelocity = .default
+    ) {
+        for _ in 0..<10 where !element.isHittable {
+            scrollView.swipeUp(velocity: velocity)
+        }
+        XCTAssertTrue(element.isHittable, "The requested Book Info control should be reachable by scrolling.")
     }
 
     @MainActor
