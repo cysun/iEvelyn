@@ -131,7 +131,8 @@ Keeping both Markdown and HTML as independently editable database fields is expl
 
 - Migration is a one-time, explicit workflow, not runtime compatibility code.
 - Build a separate .NET console exporter in `/Users/cysun/git/EvelynMigration` during Step 14.
-- The exporter reads the old PostgreSQL database in read-only mode and writes a neutral, documented bundle.
+- The exporter reads the old PostgreSQL database through a dedicated SELECT-only login, verifies a repeatable-read `READ ONLY` transaction, and writes a neutral, documented `.ievelynlegacy` bundle.
+- Legacy bookmarks and automatic reading progress are excluded: both are user-bound paragraph numbers over generated HTML and cannot be represented honestly as the semantic Markdown anchors used by iEvelyn. Their aggregate counts and the exclusion reason remain in migration reports.
 - The native iEvelyn importer validates that bundle and imports into a temporary library before an atomic commit.
 - Legacy identifiers may appear in migration reports or mappings but do not become the new domain identity scheme.
 
@@ -220,7 +221,7 @@ Migration rules:
 - Treat legacy HTML as derived data and do not normally import it.
 - If Markdown is missing or demonstrably unusable, any HTML-to-Markdown recovery must be an explicit, reported exception.
 - Import useful book metadata, ordered chapters, and referenced in-book content assets. Do not export or import legacy 600x800 cover images; covers will be recreated at iEvelyn's 2:3 ratio.
-- Decide separately whether legacy bookmarks/progress are reliable enough to migrate; do not silently pretend paragraph indices are semantic anchors.
+- Do not migrate legacy bookmarks/progress: the inspected implementation stores user-bound generated-HTML paragraph indices, which are not reliable semantic Markdown anchors. Report aggregate counts and the explicit exclusion instead.
 - Exclude users, password hashes, cookies, authorization data, server configuration, and generated legacy HTML/EPUB output.
 - Produce counts, checksums, warnings, and a skipped-item report so the user can reconcile the migration.
 - Keep the source database read-only and make repeated exports deterministic.
@@ -270,6 +271,7 @@ As of 2026-08-16:
 - Step 12 was accepted on 2026-08-16. Per-book actions prepare a deterministic EPUB 3.3 package off the main actor, run metadata/render/asset preflight, and then present SwiftUI's user-selected file exporter. Packages contain stable metadata, a title/cover page, EPUB navigation, external CSS, ordered XHTML chapters, manifest/spine entries, and referenced supported assets. ZIPFoundation 0.9.20 is the only new dependency; no schema migration was required. Structural tests and W3C EPUBCheck 5.3.0 validate text-only and Unicode cover/image fixtures, and the Apple Books interoperability checkpoint passed.
 - Step 13 was accepted on 2026-08-16. The documented `.ievelynlibrary` format packages a consistent SQLite online-backup snapshot and every authoritative asset with stable paths, record counts, producer version/timestamp metadata, byte counts, and SHA-256 checksums. The app exports that extension as a ZIP-conforming Uniform Type Identifier so save panels append it exactly once and restore panels recognize both new single-extension bundles and bundles created before that correction with the extension duplicated. Restore rejects unsafe paths, duplicates, missing/extra files, mismatched sizes/checksums/counts, invalid database relationships, and unsupported versions before constructing a temporary sibling library. A validated library replaces the active root with macOS's atomic directory exchange; a reopen failure exchanges the previous root back before reopening it.
 - Step 13 also adds a Library menu Check Library Integrity command that removes only orphaned asset files, rebuilds the disposable search index when the canonical database is healthy, and reports remaining database/asset problems without claiming they were repaired. Per-book Markdown export reconstructs the complete Step 9A title, ordered authors, and ordered canonical chapters but intentionally excludes asset bytes. Backup and restore currently materialize the archive in memory, so peak memory scales with bundle size. The step reuses GRDB, CryptoKit, and the accepted ZIPFoundation dependency, with no schema migration or new dependency.
+- Step 14 was accepted on 2026-08-16 after a successful live export from the separate `/Users/cysun/git/EvelynMigration` project. The neutral format identifier is `org.cysun.iEvelyn.legacy-export`, version 1, with the `.ievelynlegacy` extension. Stable legacy-ID paths, fixed ZIP metadata, source-derived timestamps, sorted JSON, SHA-256 checksums, counts, warnings, skipped items, and ID mappings make repeated unchanged exports deterministic. Original valid UTF-8 chapter Markdown is preserved without HTML recovery; recognized `Files/View/<id>` and `Files/Download/<id>` references map separately to neutral asset entries. Users/authentication, aggregate Markdown, generated HTML/EPUB, thumbnails, 3:4 covers, and paragraph-index bookmarks/progress are explicitly excluded and reported. Release/formatter checks, 14 fixture tests, the current dependency-vulnerability scan, and a disposable PostgreSQL end-to-end source-digest check pass.
 - Reader markup remains generated by the Step 8 renderer with JavaScript disabled and nonpersistent WebKit data. Only WebKit's exact internal `about:blank` document URL (plus fragments) is trusted for top-level navigation; explicit `http`, `https`, and `mailto` link activations are routed to the system outside the book context, and other navigation is blocked.
 - The production database resolves to `iEvelyn/Library.sqlite` under the app sandbox's Application Support directory and uses foreign keys plus WAL. Unit/integration tests use in-memory or temporary databases, and UI tests explicitly select an in-memory launch mode.
 - Sample seeding and library reset exist only in Debug builds. Release builds contain neither the commands nor the sample provider.
@@ -283,7 +285,6 @@ As of 2026-08-16:
 Resolve these at the named milestone or when the user chooses to decide sooner:
 
 - Whether a future release should add an accessible paginated/column alternative to the continuous reader.
-- Whether old bookmarks and reading progress are reliable enough to migrate: Step 14.
 - App icon, signing identity, distribution path, and notarization details: Step 16.
 
 ## Decision discipline

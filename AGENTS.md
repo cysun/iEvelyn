@@ -179,6 +179,17 @@ xcodebuild -project iEvelyn.xcodeproj -scheme iEvelyn -destination platform=macO
 
 Discover schemes with `xcodebuild -list`; do not invent scheme names or destinations.
 
+The separate Step 14 exporter uses .NET SDK 10.0.301 and keeps PostgreSQL/NuGet artifacts outside the Xcode project. These commands were verified without accessing the live legacy database:
+
+```sh
+cd /Users/cysun/git/EvelynMigration
+dotnet build EvelynMigration.slnx --configuration Release
+dotnet test EvelynMigration.slnx --configuration Release --no-restore
+tests/run-disposable-postgres.sh
+```
+
+The disposable PostgreSQL script uses a temporary local cluster and the checked-in legacy schema fixture. Never substitute the live database for that automated test.
+
 ## Git and workspace safety
 
 - Preserve all user-authored and unrelated changes.
