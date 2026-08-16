@@ -293,6 +293,7 @@ struct LibraryAssetTests {
         let bookID = try await makeBook(in: environment.repository)
         let sourceURL = environment.rootURL.appending(path: "cover.png")
         try writeImage(to: sourceURL, type: .png)
+        let sourceData = try Data(contentsOf: sourceURL)
         try await environment.repository.importCover(
             bookID: bookID,
             from: sourceURL,
@@ -306,11 +307,22 @@ struct LibraryAssetTests {
         let parsedReference = try BookAssetReference(url: validURL)
         #expect(parsedReference == BookAssetReference(bookID: bookID, assetID: cover.id))
         _ = try await environment.repository.resolveBookAssetURL(validURL)
+        #expect(try await environment.repository.assets(forBookID: bookID) == [cover])
+        #expect(
+            try await environment.repository.bookAssetPayload(for: validURL)
+                == LibraryAssetPayload(data: sourceData, mediaType: "image/png")
+        )
 
         let unknownURL = try BookAssetReference(bookID: bookID, assetID: UUID()).url()
         do {
             _ = try await environment.repository.resolveBookAssetURL(unknownURL)
             Issue.record("Expected an unknown asset reference to fail")
+        } catch let error as LibraryAssetError {
+            #expect(error == .assetReferenceNotFound)
+        }
+        do {
+            _ = try await environment.repository.bookAssetPayload(for: unknownURL)
+            Issue.record("Expected an unknown asset payload request to fail")
         } catch let error as LibraryAssetError {
             #expect(error == .assetReferenceNotFound)
         }

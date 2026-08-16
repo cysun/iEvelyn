@@ -13,6 +13,8 @@ nonisolated protocol LibraryRepository: Sendable {
     func importCover(bookID: UUID, from sourceURL: URL, at date: Date) async throws
     func removeCover(bookID: UUID, at date: Date) async throws
     func coverThumbnailData(for asset: Asset) async throws -> Data
+    func assets(forBookID bookID: UUID) async throws -> [Asset]
+    func bookAssetPayload(for url: URL) async throws -> LibraryAssetPayload
     func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error>
     func createChapter(bookID: UUID, title: String, at date: Date) async throws -> UUID
     func renameChapter(id: UUID, title: String, at date: Date) async throws
@@ -109,6 +111,14 @@ extension LibraryRepository {
     }
 
     func coverThumbnailData(for asset: Asset) async throws -> Data {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func assets(forBookID bookID: UUID) async throws -> [Asset] {
+        []
+    }
+
+    func bookAssetPayload(for url: URL) async throws -> LibraryAssetPayload {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
@@ -433,6 +443,30 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
     func coverThumbnailData(for asset: Asset) async throws -> Data {
         try await assetStore.thumbnailData(for: asset)
+    }
+
+    func assets(forBookID bookID: UUID) async throws -> [Asset] {
+        try await database.read { database in
+            try Asset
+                .filter(Column("bookID") == bookID.databaseString)
+                .order(Column("id"))
+                .fetchAll(database)
+        }
+    }
+
+    func bookAssetPayload(for url: URL) async throws -> LibraryAssetPayload {
+        let reference = try BookAssetReference(url: url)
+        guard let asset = try await database.read({ database in
+            try Asset.fetchOne(
+                database,
+                sql: "SELECT * FROM assets WHERE id = ? AND bookID = ?",
+                arguments: [reference.assetID.databaseString, reference.bookID.databaseString]
+            )
+        }) else {
+            throw LibraryAssetError.assetReferenceNotFound
+        }
+        let data = try await assetStore.storedData(for: asset)
+        return LibraryAssetPayload(data: data, mediaType: asset.mediaType)
     }
 
     func bookAssetURL(for asset: Asset) throws -> URL {

@@ -40,6 +40,7 @@ final class ChapterEditorViewModel {
     private(set) var saveState = ChapterEditorSaveState.saved
     private(set) var importErrorMessage: String?
     private(set) var isImporting = false
+    private(set) var previewGeneration = 0
 
     private var persistedMarkdown = ""
     private var expectedRenderRevision = 0
@@ -108,6 +109,7 @@ final class ChapterEditorViewModel {
     func updateMarkdown(_ newMarkdown: String) {
         guard activeChapterID != nil, markdown != newMarkdown else { return }
         markdown = newMarkdown
+        previewGeneration &+= 1
         conflictingChapter = nil
         importErrorMessage = nil
         scheduleMetrics(for: newMarkdown)
@@ -241,6 +243,7 @@ final class ChapterEditorViewModel {
         debounceTask?.cancel()
         debounceTask = nil
         markdown = persistedMarkdown
+        previewGeneration &+= 1
         conflictingChapter = nil
         saveState = .saved
         scheduleMetrics(for: markdown, immediately: true)
@@ -251,6 +254,7 @@ final class ChapterEditorViewModel {
         debounceTask = nil
         activeChapterID = chapter.id
         markdown = chapter.markdown
+        previewGeneration &+= 1
         persistedMarkdown = chapter.markdown
         expectedRenderRevision = chapter.renderRevision
         conflictingChapter = nil

@@ -14,6 +14,7 @@ final class LibraryViewModel {
     private var isObserving = false
     private let coverCache = NSCache<NSUUID, NSData>()
     private let now: @Sendable () -> Date
+    private let markdownRenderer: any MarkdownRendering
 
     var destination: LibraryDestination = .allBooks
 
@@ -27,11 +28,13 @@ final class LibraryViewModel {
         repository: any LibraryRepository,
         initialBooks: [LibraryBook] = [],
         referenceDate: Date = .now,
-        now: @escaping @Sendable () -> Date = { .now }
+        now: @escaping @Sendable () -> Date = { .now },
+        markdownRenderer: any MarkdownRendering = MarkdownRenderingService()
     ) {
         self.repository = repository
         self.referenceDate = referenceDate
         self.now = now
+        self.markdownRenderer = markdownRenderer
         books = initialBooks
         isLoading = initialBooks.isEmpty
         coverCache.countLimit = 80
@@ -62,6 +65,10 @@ final class LibraryViewModel {
 
     func makeChapterEditorModel() -> ChapterEditorViewModel {
         ChapterEditorViewModel(repository: repository, now: now)
+    }
+
+    func makeChapterPreviewModel() -> ChapterPreviewViewModel {
+        ChapterPreviewViewModel(repository: repository, renderer: markdownRenderer)
     }
 
     func loadCoverImage(for asset: Asset) async throws -> Data {

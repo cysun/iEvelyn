@@ -72,6 +72,7 @@ struct LibraryRootView: View {
                     book: model.book(id: presentation.id),
                     chapterModel: presentation.chapterModel,
                     chapterEditorModel: presentation.chapterEditorModel,
+                    chapterPreviewModel: presentation.chapterPreviewModel,
                     isBusy: model.isPerformingOperation,
                     loadCoverImage: model.loadCoverImage,
                     onCoverLoadError: model.reportCoverLoadFailure,
@@ -185,7 +186,8 @@ struct LibraryRootView: View {
         bookInfoPresentation = BookInfoPresentation(
             id: book.id,
             chapterModel: model.makeChapterManagementModel(for: book.id),
-            chapterEditorModel: model.makeChapterEditorModel()
+            chapterEditorModel: model.makeChapterEditorModel(),
+            chapterPreviewModel: model.makeChapterPreviewModel()
         )
     }
 }
@@ -194,6 +196,7 @@ private struct BookInfoPresentation: Identifiable {
     let id: LibraryBook.ID
     let chapterModel: ChapterManagementViewModel
     let chapterEditorModel: ChapterEditorViewModel
+    let chapterPreviewModel: ChapterPreviewViewModel
 }
 
 private struct ReaderPresentation: Identifiable {

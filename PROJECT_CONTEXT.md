@@ -90,6 +90,17 @@ SQLite is preferred over an opaque persistence layer because the library format 
 
 Keeping both Markdown and HTML as independently editable database fields is explicitly avoided because the two representations can drift.
 
+`swift-markdown` 0.8.0 and its `swift-cmark` 0.8.0 dependency are pinned through Swift Package Manager. The package is Apache-2.0 licensed with the Swift Runtime Library Exception. Because the package remains pre-1.0 and renderer behavior depends on its syntax tree, upgrades must be explicit and must rerun the rendering fixtures, structural tests, cache tests, Debug/Release builds, and preview UI smoke test. Step 8 defines the application dialect and rendering policy as follows:
+
+- CommonMark plus GitHub-flavored tables, task lists, and strikethrough are supported. Smart punctuation follows the parser's defaults.
+- Footnote syntax is not enabled and remains visible as literal source text rather than silently acquiring unstable semantics.
+- Raw block and inline HTML is never trusted or executed. It is escaped, displayed as source, and accompanied by a visible preview warning.
+- Text and attribute values are escaped by default. Reader and EPUB output are constructed separately; reader HTML carries a restrictive content-security policy, while EPUB output is well-formed XHTML.
+- Links are limited to `http`, `https`, `mailto`, internal fragments, and validated book assets. Unsupported or unsafe destinations are removed while their labels remain visible.
+- Images must resolve to an asset owned by the current book. Reader HTML retains a validated `book-asset://` URL serviced by the repository-backed WebKit handler, while EPUB XHTML uses a deterministic relative `../Assets/` path.
+- Stable block anchors derive from the block kind and normalized semantic Markdown, with a deterministic occurrence suffix for duplicate blocks.
+- Derived output is held only in a bounded in-memory cache keyed by source, renderer version, output mode, book, asset metadata, title, and language. It remains disposable and is never canonical data.
+
 ### Assets
 
 - Store asset metadata and ownership in SQLite.
@@ -234,18 +245,19 @@ As of 2026-08-15:
 - Step 6 reuses the Step 3 chapter schema without a migration or dependency. Deletion undo restores the same chapter UUID, Markdown, order, and chapter-linked asset/progress/bookmark references while the Book Info session remains open; canonical Markdown editing remains explicitly deferred to Step 7.
 - Step 7 was accepted on 2026-08-15. Book Info now provides a native monospaced Markdown source editor with selection, standard edit commands, undo/redo, find/replace, UTF-8 Markdown/plain-text import, Unicode-aware word and character counts, and a split-pane placeholder that keeps rendering explicitly deferred to Step 8.
 - Step 7 keeps Markdown canonical and saves through an ordered, debounced repository boundary with optimistic render-revision checks. Chapter switching and dismissal flush pending edits, newer edits cannot be overwritten by an older save, conflicts preserve the local draft until the user reloads stored content or explicitly overwrites it, and recoverable failures expose retry/revert actions. Metrics are computed off the main actor. The step adds no schema migration or dependency.
+- Step 8 was accepted on 2026-08-15. It replaces the editor placeholder with a debounced live preview built on the macOS 26 SwiftUI WebKit integration. JavaScript is disabled, website data is nonpersistent, top-level navigation is restricted to the generated document, and book assets are loaded only after repository ownership validation. The sandboxed WebKit content process requires the outgoing-connections client entitlement even for the generated local document; iEvelyn does not initiate remote fetches, and the renderer's content-security policy and navigation policy continue to prevent book content from turning that entitlement into network access.
+- Step 8 adds one controlled renderer with separate reader HTML and EPUB XHTML modes, deterministic block anchors, accessible light/dark CSS, explicit warnings for unsafe or unsupported input, and fixture coverage for GFM markup, Unicode, assets, malformed input, raw HTML, output structure, stable IDs, cache invalidation, and cancellation. It adds no schema migration.
 - The production database resolves to `iEvelyn/Library.sqlite` under the app sandbox's Application Support directory and uses foreign keys plus WAL. Unit/integration tests use in-memory or temporary databases, and UI tests explicitly select an in-memory launch mode.
 - Sample seeding and library reset exist only in Debug builds. Release builds contain neither the commands nor the sample provider.
 - Xcode 26.6 is installed on `/Volumes/galfrey`, selected as the active developer directory, and provides Swift 6.3.3.
 - Xcode Derived Data is configured under `/Volumes/galfrey/Xcode/DerivedData` to keep build output on the external volume.
-- The app uses the product name iEvelyn, bundle identifier `org.cysun.iEvelyn`, macOS 26 deployment target, Swift 6 language mode with complete strict-concurrency checking, and App Sandbox with user-selected read/write file access.
+- The app uses the product name iEvelyn, bundle identifier `org.cysun.iEvelyn`, macOS 26 deployment target, Swift 6 language mode with complete strict-concurrency checking, and App Sandbox with user-selected read/write file access plus outgoing connections required by the WebKit content process.
 - The legacy source application remains in a separate `Evelyn.NET` folder and should be consulted only when migration work reaches Steps 14–15 or when a specific legacy-data question must be answered.
 
 ## Open decisions
 
 Resolve these at the named milestone or when the user chooses to decide sooner:
 
-- Accepted Markdown extensions and raw-HTML behavior: Step 8.
 - Continuous scrolling only versus an additional paginated/column reading mode: Step 9.
 - Required EPUB language and any export-only publication metadata must be supplied by exporter policy or at export time rather than restored as stored book fields: Step 12.
 - Notes attached to bookmarks in the initial release: Step 10.

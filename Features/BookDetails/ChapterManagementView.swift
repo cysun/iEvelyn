@@ -3,6 +3,7 @@ import SwiftUI
 struct ChapterManagementView: View {
     @State private var model: ChapterManagementViewModel
     @State private var editorModel: ChapterEditorViewModel
+    @State private var previewModel: ChapterPreviewViewModel
     let isReadOnly: Bool
 
     @State private var titleEditor: ChapterTitleEditorConfiguration?
@@ -11,10 +12,12 @@ struct ChapterManagementView: View {
     init(
         model: ChapterManagementViewModel,
         editorModel: ChapterEditorViewModel,
+        previewModel: ChapterPreviewViewModel,
         isReadOnly: Bool
     ) {
         _model = State(initialValue: model)
         _editorModel = State(initialValue: editorModel)
+        _previewModel = State(initialValue: previewModel)
         self.isReadOnly = isReadOnly
     }
 
@@ -254,6 +257,7 @@ struct ChapterManagementView: View {
 
             MarkdownChapterEditorView(
                 model: editorModel,
+                previewModel: previewModel,
                 chapter: chapter,
                 isReadOnly: isReadOnly
             )

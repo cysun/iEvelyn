@@ -323,7 +323,14 @@ final class iEvelynUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Saved"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["4 words"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Preview Arrives in Step 8"].exists)
+        let renderedPreview = app.webViews["Opening"]
+        XCTAssertTrue(
+            renderedPreview.waitForExistence(timeout: 10),
+            "The preview should expose the generated chapter document through WebKit."
+        )
+        XCTAssertTrue(renderedPreview.staticTexts["Opening"].waitForExistence(timeout: 5))
+        XCTAssertTrue(renderedPreview.staticTexts["Hello Unicode chapter"].exists)
+        XCTAssertFalse(app.staticTexts["Preview Could Not Load"].exists)
 
         app.buttons["Close"].click()
         XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))

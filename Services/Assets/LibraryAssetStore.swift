@@ -102,6 +102,11 @@ nonisolated struct PreparedLibraryAsset: Sendable {
     let asset: Asset
 }
 
+nonisolated struct LibraryAssetPayload: Equatable, Sendable {
+    let data: Data
+    let mediaType: String
+}
+
 actor LibraryAssetStore {
     static let assetsDirectoryName = "Assets"
     static let cacheDirectoryName = "Cache"
@@ -314,6 +319,15 @@ actor LibraryAssetStore {
             throw LibraryAssetError.storedAssetMissing
         }
         return url
+    }
+
+    func storedData(for asset: Asset) throws -> Data {
+        let url = try storedFileURL(for: asset)
+        do {
+            return try Data(contentsOf: url, options: .mappedIfSafe)
+        } catch {
+            throw LibraryAssetError.storedAssetMissing
+        }
     }
 
     func verifyChecksum(of asset: Asset) throws -> Bool {

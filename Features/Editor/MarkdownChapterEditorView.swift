@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct MarkdownChapterEditorView: View {
     @State private var model: ChapterEditorViewModel
+    let previewModel: ChapterPreviewViewModel
     let chapter: Chapter
     let isReadOnly: Bool
 
@@ -12,8 +13,14 @@ struct MarkdownChapterEditorView: View {
     @State private var isImporterPresented = false
     @State private var conflictResolution: ConflictResolution?
 
-    init(model: ChapterEditorViewModel, chapter: Chapter, isReadOnly: Bool) {
+    init(
+        model: ChapterEditorViewModel,
+        previewModel: ChapterPreviewViewModel,
+        chapter: Chapter,
+        isReadOnly: Bool
+    ) {
         _model = State(initialValue: model)
+        self.previewModel = previewModel
         self.chapter = chapter
         self.isReadOnly = isReadOnly
     }
@@ -52,7 +59,12 @@ struct MarkdownChapterEditorView: View {
                 editorPane
                     .frame(minWidth: 280, idealWidth: 360)
 
-                previewPlaceholder
+                MarkdownLivePreviewView(
+                    model: previewModel,
+                    chapter: chapter,
+                    markdown: model.markdown,
+                    generation: model.previewGeneration
+                )
                     .frame(minWidth: 220, idealWidth: 300)
             }
             .frame(minHeight: 360, idealHeight: 440)
@@ -162,24 +174,6 @@ struct MarkdownChapterEditorView: View {
             .accessibilityIdentifier("chapter-markdown-editor")
         }
         .padding(.trailing, 6)
-    }
-
-    private var previewPlaceholder: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Preview")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            ContentUnavailableView {
-                Label("Preview Arrives in Step 8", systemImage: "doc.richtext")
-            } description: {
-                Text("Your Markdown source is saved now. Rendered preview will use the Step 8 rendering engine.")
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        }
-        .padding(.leading, 6)
-        .accessibilityIdentifier("chapter-preview-placeholder")
     }
 
     @ViewBuilder
