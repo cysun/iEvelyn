@@ -35,6 +35,7 @@ nonisolated protocol LibraryRepository: Sendable {
     func assets(forBookID bookID: UUID) async throws -> [Asset]
     func bookAssetPayload(for url: URL) async throws -> LibraryAssetPayload
     func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error>
+    func chapters(forBookID bookID: UUID) async throws -> [Chapter]
     func readingProgress(forBookID bookID: UUID) async throws -> ReadingProgress?
     func saveReadingProgress(_ progress: ReadingProgress) async throws
     func observeBookmarks(forBookID bookID: UUID) -> AsyncThrowingStream<[Bookmark], Error>
@@ -187,6 +188,10 @@ extension LibraryRepository {
         AsyncThrowingStream { continuation in
             continuation.finish(throwing: LibraryRepositoryError.readOnlyRepository)
         }
+    }
+
+    func chapters(forBookID bookID: UUID) async throws -> [Chapter] {
+        []
     }
 
     func readingProgress(forBookID bookID: UUID) async throws -> ReadingProgress? {

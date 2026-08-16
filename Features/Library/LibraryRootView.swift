@@ -4,6 +4,8 @@ struct LibraryRootView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var model: LibraryViewModel
     @State private var editorConfiguration: BookEditorConfiguration?
+    @State private var exportPresentation: EPUBExportPresentation?
+    @State private var isExportingEPUB = false
 
     init(repository: any LibraryRepository) {
         _model = State(initialValue: LibraryViewModel(repository: repository))
@@ -53,6 +55,15 @@ struct LibraryRootView: View {
                 },
                 onEditBook: { book in
                     editorConfiguration = .editing(book)
+                },
+                onExportBook: { book in
+                    Task {
+                        guard let preparedExport = await model.prepareEPUBExport(for: book) else {
+                            return
+                        }
+                        exportPresentation = preparedExport
+                        isExportingEPUB = true
+                    }
                 }
             )
         }
@@ -78,6 +89,19 @@ struct LibraryRootView: View {
                     editorConfiguration = nil
                 }
             )
+        }
+        .fileExporter(
+            isPresented: $isExportingEPUB,
+            document: exportPresentation.map { EPUBExportDocument(data: $0.file.data) },
+            contentType: EPUBExportDocument.contentType,
+            defaultFilename: exportPresentation?.file.suggestedFilename ?? "Untitled Book.epub"
+        ) { result in
+            isExportingEPUB = false
+            exportPresentation = nil
+            if case .failure(let error) = result,
+               (error as? CocoaError)?.code != .userCancelled {
+                model.reportEPUBFileWriteFailure(error)
+            }
         }
         .alert(item: $model.alert) { alert in
             Alert(

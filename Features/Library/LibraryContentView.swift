@@ -6,6 +6,7 @@ struct LibraryContentView: View {
     let onOpenBook: (LibraryBook) -> Void
     let onOpenSearchResult: (LibrarySearchResult) -> Void
     let onEditBook: (LibraryBook) -> Void
+    let onExportBook: (LibraryBook) -> Void
 
     @State private var permanentDeletionCandidate: LibraryBook?
 
@@ -127,6 +128,13 @@ struct LibraryContentView: View {
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
                 .accessibilityIdentifier("library-book-count")
+
+            if model.isPreparingEPUB {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Preparing EPUB")
+                    .accessibilityIdentifier("library-epub-preparing")
+            }
         }
         .padding(.horizontal, LibraryDesignTokens.contentPadding)
         .padding(.vertical, 16)
@@ -274,6 +282,8 @@ struct LibraryContentView: View {
         switch action {
         case .edit:
             onEditBook(book)
+        case .exportEPUB:
+            onExportBook(book)
         case .toggleFavorite:
             Task {
                 await model.toggleFavorite(for: book)

@@ -66,6 +66,7 @@ nonisolated struct MarkdownRenderResult: Equatable, Sendable {
     let cacheKey: MarkdownRenderCacheKey
     let blockIDs: [String]
     let blocks: [MarkdownRenderedBlock]
+    let referencedAssetIDs: [UUID]
     let issues: [MarkdownRenderIssue]
 }
 
@@ -142,6 +143,9 @@ actor MarkdownRenderingService: MarkdownRendering {
             cacheKey: cacheKey,
             blockIDs: bodyRenderer.blockIDs,
             blocks: bodyRenderer.blocks,
+            referencedAssetIDs: bodyRenderer.referencedAssetIDs.sorted {
+                $0.databaseString < $1.databaseString
+            },
             issues: bodyRenderer.issues
         )
         insert(result, for: cacheKey)
@@ -199,6 +203,7 @@ nonisolated private struct ControlledHTMLBodyRenderer: MarkupVisitor {
     private(set) var issues: [MarkdownRenderIssue] = []
     private(set) var blockIDs: [String] = []
     private(set) var blocks: [MarkdownRenderedBlock] = []
+    private(set) var referencedAssetIDs: Set<UUID> = []
     private(set) var wasCancelled = false
     private var blockOccurrences: [String: Int] = [:]
     private var tableAlignments: [Table.ColumnAlignment?] = []
@@ -474,13 +479,14 @@ nonisolated private struct ControlledHTMLBodyRenderer: MarkupVisitor {
         }
     }
 
-    private func resolvedAssetSource(_ source: String) -> String? {
+    private mutating func resolvedAssetSource(_ source: String) -> String? {
         guard let url = URL(string: source),
               let reference = try? BookAssetReference(url: url),
               reference.bookID == bookID,
               let asset = assetsByID[reference.assetID] else {
             return nil
         }
+        referencedAssetIDs.insert(asset.id)
 
         switch mode {
         case .readerHTML:
@@ -490,7 +496,7 @@ nonisolated private struct ControlledHTMLBodyRenderer: MarkupVisitor {
         }
     }
 
-    private func safeLinkDestination(_ destination: String) -> String? {
+    private mutating func safeLinkDestination(_ destination: String) -> String? {
         if destination.hasPrefix("#"),
            !destination.dropFirst().contains(where: { $0.isWhitespace }) {
             return destination
@@ -602,7 +608,7 @@ nonisolated private enum HTMLDocumentBuilder {
             <head>
             <meta charset="utf-8" />
             <title>\(safeTitle)</title>
-            <style type="text/css">\(MarkdownStyles.epub)</style>
+            <link rel="stylesheet" type="text/css" href="../Styles/book.css" />
             </head>
             <body><section class="chapter" data-renderer-version="\(rendererVersion)">
             \(body)</section></body>

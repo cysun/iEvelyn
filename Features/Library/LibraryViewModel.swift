@@ -10,12 +10,14 @@ final class LibraryViewModel {
     private(set) var isLoading: Bool
     private(set) var errorMessage: String?
     private(set) var isPerformingOperation = false
+    private(set) var isPreparingEPUB = false
     var alert: LibraryViewModelAlert?
     private var isObserving = false
     private var searchTask: Task<Void, Never>?
     private let coverCache = NSCache<NSUUID, NSData>()
     private let now: @Sendable () -> Date
     private let bookContentImporter: any BookContentImporting
+    private let epubExporter: any EPUBExporting
 
     var destination: LibraryDestination = .allBooks {
         didSet {
@@ -47,12 +49,14 @@ final class LibraryViewModel {
         initialBooks: [LibraryBook] = [],
         referenceDate: Date = .now,
         now: @escaping @Sendable () -> Date = { .now },
-        bookContentImporter: any BookContentImporting = BookContentImporter()
+        bookContentImporter: any BookContentImporting = BookContentImporter(),
+        epubExporter: (any EPUBExporting)? = nil
     ) {
         self.repository = repository
         self.referenceDate = referenceDate
         self.now = now
         self.bookContentImporter = bookContentImporter
+        self.epubExporter = epubExporter ?? EPUBExportService(repository: repository)
         books = initialBooks
         isLoading = initialBooks.isEmpty
         coverCache.countLimit = 80
@@ -228,6 +232,32 @@ final class LibraryViewModel {
         await performOperation(errorTitle: "Could Not Delete Book") {
             try await repository.deleteBookPermanently(id: book.id)
         }
+    }
+
+    func prepareEPUBExport(for book: LibraryBook) async -> EPUBExportPresentation? {
+        guard !isPreparingEPUB else { return nil }
+        isPreparingEPUB = true
+        defer { isPreparingEPUB = false }
+
+        do {
+            let file = try await epubExporter.export(book: book)
+            return EPUBExportPresentation(file: file)
+        } catch is CancellationError {
+            return nil
+        } catch {
+            alert = LibraryViewModelAlert(
+                title: "Could Not Export EPUB",
+                message: error.localizedDescription
+            )
+            return nil
+        }
+    }
+
+    func reportEPUBFileWriteFailure(_ error: Error) {
+        alert = LibraryViewModelAlert(
+            title: "Could Not Save EPUB",
+            message: error.localizedDescription
+        )
     }
 
     func markOpened(_ book: LibraryBook) async {

@@ -305,6 +305,46 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
+    func testBookActionsExportEPUBWithSystemSavePanel() throws {
+        let app = launchApplication(
+            seedSampleLibrary: false,
+            bookContent: """
+            # Export Workflow
+            ### Test Author
+            ## Opening
+
+            Exported content.
+            """
+        )
+
+        app.descendants(matching: .any)["library-add-book"].click()
+        let title = app.textFields["book-editor-title"]
+        let author = app.textFields["book-editor-author-0"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.click()
+        title.typeText("Export Workflow")
+        author.click()
+        author.typeText("Test Author")
+        app.descendants(matching: .any)["book-editor-save"].click()
+
+        let actions = app.descendants(matching: .any)["Actions for Export Workflow"]
+        XCTAssertTrue(actions.waitForExistence(timeout: 10))
+        actions.click()
+        let export = app.menuItems["Export EPUB…"]
+        XCTAssertTrue(export.waitForExistence(timeout: 5))
+        export.click()
+
+        let savePanel = app.sheets.firstMatch
+        XCTAssertTrue(
+            savePanel.waitForExistence(timeout: 10),
+            "Export EPUB should present the system file exporter after preflight succeeds."
+        )
+        XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        savePanel.buttons["Cancel"].click()
+        XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
     func testImportedChapterStructurePersistsWithoutManualControls() throws {
         let app = launchApplication(
             seedSampleLibrary: false,

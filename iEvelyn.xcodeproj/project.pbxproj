@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		B11000000000000000000001 /* SimpleTokenizer in Frameworks */ = {isa = PBXBuildFile; productRef = B11000000000000000000003 /* SimpleTokenizer */; };
+		B12000000000000000000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = B12000000000000000000003 /* ZIPFoundation */; };
 		B30000000000000000000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B30000000000000000000003 /* GRDB */; };
 		B80000000000000000000001 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = B80000000000000000000003 /* Markdown */; };
 /* End PBXBuildFile section */
@@ -147,6 +148,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B11000000000000000000001 /* SimpleTokenizer in Frameworks */,
+				B12000000000000000000001 /* ZIPFoundation in Frameworks */,
 				B30000000000000000000001 /* GRDB in Frameworks */,
 				B80000000000000000000001 /* Markdown in Frameworks */,
 			);
@@ -222,6 +224,7 @@
 			name = iEvelyn;
 			packageProductDependencies = (
 				B11000000000000000000003 /* SimpleTokenizer */,
+				B12000000000000000000003 /* ZIPFoundation */,
 				B30000000000000000000003 /* GRDB */,
 				B80000000000000000000003 /* Markdown */,
 			);
@@ -309,6 +312,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B11000000000000000000005 /* XCLocalSwiftPackageReference "Packages/SimpleTokenizer" */,
+				B12000000000000000000005 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				B30000000000000000000005 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				B80000000000000000000005 /* XCRemoteSwiftPackageReference "swift-markdown" */,
 			);
@@ -697,6 +701,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		B12000000000000000000005 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.9.20;
+			};
+		};
 		B30000000000000000000005 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/groue/GRDB.swift.git";
@@ -720,6 +732,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B11000000000000000000005 /* XCLocalSwiftPackageReference "Packages/SimpleTokenizer" */;
 			productName = SimpleTokenizer;
+		};
+		B12000000000000000000003 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B12000000000000000000005 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
 		};
 		B30000000000000000000003 /* GRDB */ = {
 			isa = XCSwiftPackageProductDependency;

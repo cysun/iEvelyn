@@ -2,6 +2,7 @@ import SwiftUI
 
 enum BookManagementAction {
     case edit
+    case exportEPUB
     case toggleFavorite
     case moveToTrash
     case restore
@@ -26,14 +27,18 @@ struct BookManagementCommands: View {
                 onAction(.edit)
             }
 
+            Button("Export EPUB…", systemImage: "square.and.arrow.up") {
+                onAction(.exportEPUB)
+            }
+
+            Divider()
+
             Button(
                 book.isFavorite ? "Remove from Favorites" : "Add to Favorites",
                 systemImage: book.isFavorite ? "heart.slash" : "heart"
             ) {
                 onAction(.toggleFavorite)
             }
-
-            Divider()
 
             Button("Move to Trash", systemImage: "trash", role: .destructive) {
                 onAction(.moveToTrash)
