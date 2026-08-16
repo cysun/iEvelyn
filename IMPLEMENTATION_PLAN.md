@@ -11,7 +11,7 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 ## Current status
 
 - Current milestone: Step 10 — Progress, bookmarks, and notes.
-- Implementation status: not started; Step 9 was accepted on 2026-08-15 and is ready to commit.
+- Implementation status: not started; Step 9 was accepted and committed on 2026-08-15.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
