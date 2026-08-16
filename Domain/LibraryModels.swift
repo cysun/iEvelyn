@@ -38,12 +38,14 @@ nonisolated struct BookMetadataInput: Equatable, Sendable {
     var title: String
     var subtitle: String
     var authors: [String]
+    var tags: [String]
     var summary: String
 
     static let empty = BookMetadataInput(
         title: "",
         subtitle: "",
         authors: [""],
+        tags: [],
         summary: ""
     )
 
@@ -51,11 +53,13 @@ nonisolated struct BookMetadataInput: Equatable, Sendable {
         title: String,
         subtitle: String = "",
         authors: [String],
+        tags: [String] = [],
         summary: String = ""
     ) {
         self.title = title
         self.subtitle = subtitle
         self.authors = authors
+        self.tags = tags
         self.summary = summary
     }
 
@@ -78,10 +82,23 @@ nonisolated struct BookMetadataInput: Equatable, Sendable {
             }
         }
 
+        let tags = tags.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard tags.allSatisfy({ !$0.isEmpty }) else {
+            throw BookMetadataValidationError.emptyTag
+        }
+        var normalizedTags = Set<String>()
+        for tag in tags {
+            let normalizedName = LibraryNameNormalizer.normalize(tag)
+            guard normalizedTags.insert(normalizedName).inserted else {
+                throw BookMetadataValidationError.duplicateTag(tag)
+            }
+        }
+
         return ValidatedBookMetadata(
             title: title,
             subtitle: Self.optionalTrimmed(subtitle),
             authors: authors,
+            tags: tags,
             summary: summary.trimmingCharacters(in: .whitespacesAndNewlines)
         )
     }
@@ -97,6 +114,7 @@ nonisolated struct ValidatedBookMetadata: Equatable, Sendable {
     let title: String
     let subtitle: String?
     let authors: [String]
+    let tags: [String]
     let summary: String
 }
 
@@ -104,6 +122,8 @@ nonisolated enum BookMetadataValidationError: LocalizedError, Equatable {
     case titleRequired
     case authorRequired
     case duplicateAuthor(String)
+    case emptyTag
+    case duplicateTag(String)
 
     var errorDescription: String? {
         switch self {
@@ -113,6 +133,10 @@ nonisolated enum BookMetadataValidationError: LocalizedError, Equatable {
             "Enter at least one author, and remove any empty author rows."
         case .duplicateAuthor(let name):
             "Each author may appear only once. “\(name)” is duplicated."
+        case .emptyTag:
+            "Remove any empty tag rows."
+        case .duplicateTag(let name):
+            "Each tag may appear only once. “\(name)” is duplicated."
         }
     }
 }

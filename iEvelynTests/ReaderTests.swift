@@ -119,6 +119,68 @@ struct ReaderTests {
         #expect(fractionResolution.strategy == .fraction)
     }
 
+    @MainActor
+    @Test("Library search targets select and resolve the matching chapter block")
+    func librarySearchTargetNavigation() async throws {
+        let bookID = UUID()
+        let opening = Chapter(
+            bookID: bookID,
+            title: "Opening",
+            markdown: "## Opening\n\nFirst paragraph.",
+            position: 0
+        )
+        let destination = Chapter(
+            bookID: bookID,
+            title: "Destination",
+            markdown: "## Destination\n\n精确搜索位置。\n\nFollowing paragraph.",
+            position: 1
+        )
+        let blocks = MarkdownSearchTextExtractor.blocks(from: destination.markdown)
+        let destinationBlock = try #require(
+            blocks.first { $0.normalizedText.contains("精确搜索位置") }
+        )
+        let target = ReaderSearchTarget(
+            chapterID: destination.id,
+            stableBlockID: destinationBlock.id,
+            textQuote: destinationBlock.normalizedText,
+            fractionInChapter: 0.5
+        )
+        let repository = ReaderSearchTargetRepository(
+            book: LibraryBook(
+                id: bookID,
+                title: "Search Navigation",
+                subtitle: nil,
+                authors: ["Reader"],
+                summary: "",
+                tags: [],
+                dateAdded: .now,
+                isFavorite: false,
+                isCurrentlyReading: false,
+                readingProgress: nil,
+                isTrashed: false,
+                coverStyle: .derived(from: bookID)
+            ),
+            chapters: [opening, destination]
+        )
+        let model = ReaderViewModel(
+            bookID: bookID,
+            searchTarget: target,
+            repository: repository
+        )
+
+        await model.observe()
+        #expect(model.selectedChapterID == destination.id)
+        let navigation = try #require(model.bookmarkNavigation)
+        #expect(navigation.chapterID == destination.id)
+        #expect(navigation.anchor.stableBlockID == destinationBlock.id)
+
+        await model.renderSelectedChapter(preferences: .defaults)
+        let renderedChapter = try #require(model.renderedChapter)
+        let resolved = try #require(model.resolvedBookmarkNavigation(for: renderedChapter))
+        #expect(resolved.location.stableBlockID == destinationBlock.id)
+        #expect(resolved.location.strategy == .stableBlock)
+    }
+
     @Test("Overall progress maps chapter fractions and fallback chapters")
     func progressCalculations() {
         #expect(ReaderProgressCalculator.overallProgress(
@@ -391,6 +453,25 @@ private struct ReaderProbeNavigationDecider: WebPage.NavigationDeciding {
 private nonisolated struct ReaderProbeRepository: LibraryRepository {
     func observeLibraryBooks() -> AsyncThrowingStream<[LibraryBook], Error> {
         AsyncThrowingStream { continuation in
+            continuation.finish()
+        }
+    }
+}
+
+private nonisolated struct ReaderSearchTargetRepository: LibraryRepository {
+    let book: LibraryBook
+    let chapters: [Chapter]
+
+    func observeLibraryBooks() -> AsyncThrowingStream<[LibraryBook], Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield([book])
+            continuation.finish()
+        }
+    }
+
+    func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error> {
+        AsyncThrowingStream { continuation in
+            continuation.yield(chapters.filter { $0.bookID == bookID })
             continuation.finish()
         }
     }

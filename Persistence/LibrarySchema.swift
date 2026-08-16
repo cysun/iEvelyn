@@ -3,6 +3,7 @@ import GRDB
 nonisolated enum LibrarySchema {
     static let initialMigrationIdentifier = "v1_create_library_schema"
     static let removePublicationMetadataMigrationIdentifier = "v2_remove_publication_metadata"
+    static let fullTextSearchMigrationIdentifier = "v3_add_full_text_search"
 
     static var migrator: DatabaseMigrator {
         var migrator = versionOneMigrator
@@ -15,6 +16,13 @@ nonisolated enum LibrarySchema {
                     table.drop(column: column)
                 }
             }
+        }
+        migrator.registerMigration(
+            fullTextSearchMigrationIdentifier,
+            foreignKeyChecks: .immediate
+        ) { database in
+            try database.execute(sql: fullTextSearchSchemaSQL)
+            _ = try LibrarySearchIndexer.rebuildAll(database)
         }
         return migrator
     }
@@ -219,6 +227,85 @@ nonisolated enum LibrarySchema {
              )
         BEGIN
             SELECT RAISE(ABORT, 'bookmark chapter must belong to the same book');
+        END;
+        """
+
+    private static let fullTextSearchSchemaSQL = """
+        CREATE TABLE librarySearchDocuments (
+            id INTEGER PRIMARY KEY,
+            documentKey TEXT NOT NULL UNIQUE,
+            bookID TEXT NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+            chapterID TEXT REFERENCES chapters(id) ON DELETE CASCADE,
+            stableBlockID TEXT,
+            kind TEXT NOT NULL CHECK (kind IN ('metadata', 'chapterTitle', 'content')),
+            ordinal INTEGER NOT NULL CHECK (ordinal >= 0),
+            fractionInChapter REAL NOT NULL DEFAULT 0.0
+                CHECK (fractionInChapter BETWEEN 0.0 AND 1.0),
+            title TEXT NOT NULL DEFAULT '',
+            subtitle TEXT NOT NULL DEFAULT '',
+            authors TEXT NOT NULL DEFAULT '',
+            tags TEXT NOT NULL DEFAULT '',
+            chapterTitle TEXT NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT ''
+        );
+
+        CREATE INDEX librarySearchDocuments_bookID
+            ON librarySearchDocuments(bookID, ordinal, id);
+        CREATE INDEX librarySearchDocuments_chapterID
+            ON librarySearchDocuments(chapterID, ordinal, id)
+            WHERE chapterID IS NOT NULL;
+
+        CREATE VIRTUAL TABLE librarySearchIndex USING fts5(
+            title,
+            subtitle,
+            authors,
+            tags,
+            chapterTitle,
+            body,
+            content='librarySearchDocuments',
+            content_rowid='id',
+            tokenize='simple 0'
+        );
+
+        CREATE TRIGGER librarySearchDocuments_after_insert
+        AFTER INSERT ON librarySearchDocuments
+        BEGIN
+            INSERT INTO librarySearchIndex(
+                rowid, title, subtitle, authors, tags, chapterTitle, body
+            ) VALUES (
+                NEW.id, NEW.title, NEW.subtitle, NEW.authors, NEW.tags,
+                NEW.chapterTitle, NEW.body
+            );
+        END;
+
+        CREATE TRIGGER librarySearchDocuments_after_delete
+        AFTER DELETE ON librarySearchDocuments
+        BEGIN
+            INSERT INTO librarySearchIndex(
+                librarySearchIndex, rowid, title, subtitle, authors, tags,
+                chapterTitle, body
+            ) VALUES (
+                'delete', OLD.id, OLD.title, OLD.subtitle, OLD.authors, OLD.tags,
+                OLD.chapterTitle, OLD.body
+            );
+        END;
+
+        CREATE TRIGGER librarySearchDocuments_after_update
+        AFTER UPDATE ON librarySearchDocuments
+        BEGIN
+            INSERT INTO librarySearchIndex(
+                librarySearchIndex, rowid, title, subtitle, authors, tags,
+                chapterTitle, body
+            ) VALUES (
+                'delete', OLD.id, OLD.title, OLD.subtitle, OLD.authors, OLD.tags,
+                OLD.chapterTitle, OLD.body
+            );
+            INSERT INTO librarySearchIndex(
+                rowid, title, subtitle, authors, tags, chapterTitle, body
+            ) VALUES (
+                NEW.id, NEW.title, NEW.subtitle, NEW.authors, NEW.tags,
+                NEW.chapterTitle, NEW.body
+            );
         END;
         """
 }

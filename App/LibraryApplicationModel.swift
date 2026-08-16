@@ -137,6 +137,29 @@ final class LibraryApplicationModel {
             )
         }
     }
+
+    func rebuildSearchIndex() async {
+        guard let repository else {
+            alert = LibraryApplicationAlert(
+                title: "Search Repair Unavailable",
+                message: "The library database has not finished loading."
+            )
+            return
+        }
+
+        do {
+            let report = try await repository.rebuildSearchIndex()
+            alert = LibraryApplicationAlert(
+                title: "Search Index Rebuilt",
+                message: "Indexed \(report.rebuiltDocumentCount) search documents across \(report.indexedBookCount) books."
+            )
+        } catch {
+            alert = LibraryApplicationAlert(
+                title: "Could Not Rebuild Search Index",
+                message: error.localizedDescription
+            )
+        }
+    }
 #endif
 }
 

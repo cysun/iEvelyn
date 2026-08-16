@@ -3,6 +3,12 @@ import GRDB
 
 nonisolated protocol LibraryRepository: Sendable {
     func observeLibraryBooks() -> AsyncThrowingStream<[LibraryBook], Error>
+    func searchLibrary(
+        _ query: String,
+        scope: LibrarySearchScope,
+        trashScope: LibrarySearchTrashScope
+    ) async throws -> [LibrarySearchResult]
+    func rebuildSearchIndex() async throws -> LibrarySearchRepairReport
     func createBook(metadata: BookMetadataInput, at date: Date) async throws -> UUID
     func updateBook(id: UUID, metadata: BookMetadataInput, at date: Date) async throws
     func createBook(
@@ -98,6 +104,18 @@ nonisolated struct ChapterRevisionConflict: LocalizedError, Equatable, Sendable 
 }
 
 extension LibraryRepository {
+    func searchLibrary(
+        _ query: String,
+        scope: LibrarySearchScope,
+        trashScope: LibrarySearchTrashScope
+    ) async throws -> [LibrarySearchResult] {
+        []
+    }
+
+    func rebuildSearchIndex() async throws -> LibrarySearchRepairReport {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
     func createBook(metadata: BookMetadataInput, at date: Date) async throws -> UUID {
         throw LibraryRepositoryError.readOnlyRepository
     }
@@ -266,6 +284,75 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         }
     }
 
+    func searchLibrary(
+        _ query: String,
+        scope: LibrarySearchScope,
+        trashScope: LibrarySearchTrashScope
+    ) async throws -> [LibrarySearchResult] {
+        let expression = try LibrarySearchQueryBuilder.matchExpression(
+            for: query,
+            scope: scope
+        )
+        try Task.checkCancellation()
+        let rows = try await database.read { database in
+            try LibrarySearchRow.fetchAll(
+                database,
+                sql: """
+                    SELECT
+                        documents.documentKey,
+                        documents.bookID,
+                        books.title AS bookTitle,
+                        COALESCE((
+                            SELECT group_concat(displayName, ', ')
+                            FROM (
+                                SELECT authors.displayName
+                                FROM authors
+                                JOIN bookAuthors ON bookAuthors.authorID = authors.id
+                                WHERE bookAuthors.bookID = books.id
+                                ORDER BY bookAuthors.position, authors.normalizedName, authors.id
+                            )
+                        ), '') AS authorLine,
+                        documents.chapterID,
+                        chapters.title AS storedChapterTitle,
+                        documents.stableBlockID,
+                        documents.fractionInChapter,
+                        documents.kind,
+                        documents.body,
+                        highlight(librarySearchIndex, 0, '\(LibrarySearchIndexer.highlightStart)', '\(LibrarySearchIndexer.highlightEnd)') AS highlightedTitle,
+                        highlight(librarySearchIndex, 1, '\(LibrarySearchIndexer.highlightStart)', '\(LibrarySearchIndexer.highlightEnd)') AS highlightedSubtitle,
+                        highlight(librarySearchIndex, 2, '\(LibrarySearchIndexer.highlightStart)', '\(LibrarySearchIndexer.highlightEnd)') AS highlightedAuthors,
+                        highlight(librarySearchIndex, 3, '\(LibrarySearchIndexer.highlightStart)', '\(LibrarySearchIndexer.highlightEnd)') AS highlightedTags,
+                        highlight(librarySearchIndex, 4, '\(LibrarySearchIndexer.highlightStart)', '\(LibrarySearchIndexer.highlightEnd)') AS highlightedChapterTitle,
+                        snippet(librarySearchIndex, 5, '\(LibrarySearchIndexer.highlightStart)', '\(LibrarySearchIndexer.highlightEnd)', '…', 32) AS bodySnippet
+                    FROM librarySearchIndex
+                    JOIN librarySearchDocuments AS documents
+                        ON documents.id = librarySearchIndex.rowid
+                    JOIN books ON books.id = documents.bookID
+                    LEFT JOIN chapters ON chapters.id = documents.chapterID
+                    WHERE librarySearchIndex MATCH ?
+                      AND ((? = 'activeLibrary' AND books.trashedAt IS NULL)
+                           OR (? = 'trash' AND books.trashedAt IS NOT NULL))
+                    ORDER BY
+                        bm25(librarySearchIndex, 12.0, 8.0, 7.0, 6.0, 5.0, 1.0),
+                        books.title COLLATE NOCASE,
+                        COALESCE(chapters.position, -1),
+                        documents.ordinal,
+                        documents.id
+                    LIMIT 250
+                    """,
+                arguments: [expression, trashScope.rawValue, trashScope.rawValue]
+            )
+        }
+        try Task.checkCancellation()
+        return rows.map(\.searchResult)
+    }
+
+    func rebuildSearchIndex() async throws -> LibrarySearchRepairReport {
+        try await database.write { database in
+            try LibrarySearchIndexer.rebuildAll(database)
+        }
+    }
+
     func observeChapters(forBookID bookID: UUID) -> AsyncThrowingStream<[Chapter], Error> {
         let observation = ValueObservation.tracking { database in
             try Self.fetchChapters(forBookID: bookID, database: database)
@@ -405,6 +492,13 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 at: date,
                 database: database
             )
+            try Self.replaceTags(
+                forBookID: book.id,
+                names: metadata.tags,
+                at: date,
+                database: database
+            )
+            try LibrarySearchIndexer.reindexBook(bookID: book.id, database: database)
         }
         return book.id
     }
@@ -433,6 +527,13 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 at: date,
                 database: database
             )
+            try Self.replaceTags(
+                forBookID: id,
+                names: metadata.tags,
+                at: date,
+                database: database
+            )
+            try LibrarySearchIndexer.reindexBook(bookID: id, database: database)
         }
     }
 
@@ -476,6 +577,12 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                     at: date,
                     database: database
                 )
+                try Self.replaceTags(
+                    forBookID: book.id,
+                    names: metadata.tags,
+                    at: date,
+                    database: database
+                )
                 for (position, importedChapter) in contentChapters.enumerated() {
                     try Chapter(
                         bookID: book.id,
@@ -490,6 +597,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 if let preparedCover {
                     try preparedCover.asset.insert(database)
                 }
+                try LibrarySearchIndexer.reindexBook(bookID: book.id, database: database)
             }
         } catch {
             if let preparedCover {
@@ -549,6 +657,12 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                     at: date,
                     database: database
                 )
+                try Self.replaceTags(
+                    forBookID: id,
+                    names: metadata.tags,
+                    at: date,
+                    database: database
+                )
 
                 switch validatedChapterUpdate {
                 case .unchanged:
@@ -568,6 +682,8 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                         database: database
                     )
                 }
+
+                try LibrarySearchIndexer.reindexBook(bookID: id, database: database)
 
                 switch coverUpdate {
                 case .unchanged:
@@ -670,12 +786,14 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
     func insertBook(_ book: Book) async throws {
         try await database.write { database in
             try book.insert(database)
+            try LibrarySearchIndexer.reindexBook(bookID: book.id, database: database)
         }
     }
 
     func updateBook(_ book: Book) async throws {
         try await database.write { database in
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(bookID: book.id, database: database)
         }
     }
 
@@ -849,6 +967,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
     func linkAuthor(_ link: BookAuthor) async throws {
         try await database.write { database in
             try link.insert(database)
+            try LibrarySearchIndexer.reindexBook(bookID: link.bookID, database: database)
         }
     }
 
@@ -871,6 +990,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
     func insertChapter(_ chapter: Chapter) async throws {
         try await database.write { database in
             try chapter.insert(database)
+            try LibrarySearchIndexer.reindexBook(bookID: chapter.bookID, database: database)
         }
     }
 
@@ -904,6 +1024,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
             book.updatedAt = date
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(bookID: bookID, database: database)
             return chapter
         }
         return chapter.id
@@ -928,6 +1049,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
             book.updatedAt = date
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(bookID: chapter.bookID, database: database)
         }
     }
 
@@ -962,6 +1084,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
             book.updatedAt = date
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(bookID: chapter.bookID, database: database)
             return chapter
         }
     }
@@ -1005,6 +1128,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
             book.updatedAt = date
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(bookID: source.bookID, database: database)
             return duplicate.id
         }
     }
@@ -1046,6 +1170,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
             book.updatedAt = date
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(bookID: chapter.bookID, database: database)
             return ChapterDeletion(
                 chapter: chapter,
                 linkedAssetIDs: linkedAssetIDs,
@@ -1124,6 +1249,10 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
 
             book.updatedAt = date
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(
+                bookID: restoredChapter.bookID,
+                database: database
+            )
         }
     }
 
@@ -1149,6 +1278,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             )
             book.updatedAt = date
             try book.update(database)
+            try LibrarySearchIndexer.reindexBook(bookID: bookID, database: database)
         }
     }
 
@@ -1165,6 +1295,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 updatedAt: nil,
                 database: database
             )
+            try LibrarySearchIndexer.reindexBook(bookID: bookID, database: database)
         }
     }
 
@@ -1183,6 +1314,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
     func linkTag(_ link: BookTag) async throws {
         try await database.write { database in
             try link.insert(database)
+            try LibrarySearchIndexer.reindexBook(bookID: link.bookID, database: database)
         }
     }
 
@@ -1423,6 +1555,37 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         }
     }
 
+    private static func replaceTags(
+        forBookID bookID: UUID,
+        names: [String],
+        at date: Date,
+        database: Database
+    ) throws {
+        _ = try BookTag
+            .filter(Column("bookID") == bookID.databaseString)
+            .deleteAll(database)
+
+        for name in names {
+            let normalizedName = LibraryNameNormalizer.normalize(name)
+            let tag: Tag
+            if let existing = try Tag
+                .filter(Column("normalizedName") == normalizedName)
+                .fetchOne(database) {
+                tag = existing
+            } else {
+                let newTag = Tag(
+                    name: name,
+                    normalizedName: normalizedName,
+                    createdAt: date,
+                    updatedAt: date
+                )
+                try newTag.insert(database)
+                tag = newTag
+            }
+            try BookTag(bookID: bookID, tagID: tag.id).insert(database)
+        }
+    }
+
     private static func fetchCover(bookID: UUID, database: Database) throws -> Asset? {
         try Asset.fetchOne(
             database,
@@ -1512,6 +1675,59 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             }
             try chapter.update(database)
         }
+    }
+}
+
+private nonisolated struct LibrarySearchRow: Decodable, FetchableRecord, Sendable {
+    let documentKey: String
+    let bookID: UUID
+    let bookTitle: String
+    let authorLine: String
+    let chapterID: UUID?
+    let storedChapterTitle: String?
+    let stableBlockID: String?
+    let fractionInChapter: Double
+    let kind: LibrarySearchResultKind
+    let body: String
+    let highlightedTitle: String
+    let highlightedSubtitle: String
+    let highlightedAuthors: String
+    let highlightedTags: String
+    let highlightedChapterTitle: String
+    let bodySnippet: String
+
+    var searchResult: LibrarySearchResult {
+        let candidates: [String]
+        switch kind {
+        case .metadata:
+            candidates = [
+                highlightedTitle,
+                highlightedSubtitle,
+                highlightedAuthors,
+                highlightedTags
+            ]
+        case .chapterTitle:
+            candidates = [highlightedChapterTitle]
+        case .content:
+            candidates = [bodySnippet]
+        }
+        let snippet = candidates.first {
+            $0.contains(LibrarySearchIndexer.highlightStart)
+        } ?? candidates.first(where: { !$0.isEmpty }) ?? bookTitle
+
+        return LibrarySearchResult(
+            id: documentKey,
+            bookID: bookID,
+            bookTitle: bookTitle,
+            authorLine: authorLine,
+            chapterID: chapterID,
+            chapterTitle: storedChapterTitle,
+            stableBlockID: stableBlockID,
+            textQuote: body.isEmpty ? nil : String(body.prefix(220)),
+            fractionInChapter: fractionInChapter,
+            kind: kind,
+            highlightedSnippet: snippet
+        )
     }
 }
 
@@ -1612,6 +1828,8 @@ extension GRDBLibraryRepository {
                     .insert(database)
                 }
             }
+
+            _ = try LibrarySearchIndexer.rebuildAll(database)
 
             return true
         }

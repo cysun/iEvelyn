@@ -70,6 +70,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
             title: title,
             subtitle: subtitle ?? "",
             authors: authors.isEmpty ? [""] : authors,
+            tags: tags,
             summary: summary
         )
     }

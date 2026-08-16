@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B11000000000000000000001 /* SimpleTokenizer in Frameworks */ = {isa = PBXBuildFile; productRef = B11000000000000000000003 /* SimpleTokenizer */; };
 		B30000000000000000000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B30000000000000000000003 /* GRDB */; };
 		B80000000000000000000001 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = B80000000000000000000003 /* Markdown */; };
 /* End PBXBuildFile section */
@@ -145,6 +146,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B11000000000000000000001 /* SimpleTokenizer in Frameworks */,
 				B30000000000000000000001 /* GRDB in Frameworks */,
 				B80000000000000000000001 /* Markdown in Frameworks */,
 			);
@@ -219,6 +221,7 @@
 			);
 			name = iEvelyn;
 			packageProductDependencies = (
+				B11000000000000000000003 /* SimpleTokenizer */,
 				B30000000000000000000003 /* GRDB */,
 				B80000000000000000000003 /* Markdown */,
 			);
@@ -304,11 +307,12 @@
 			);
 			mainGroup = 93E0D50C30302B5600869C04;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			packageReferences = (
+				B11000000000000000000005 /* XCLocalSwiftPackageReference "Packages/SimpleTokenizer" */,
 				B30000000000000000000005 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
 				B80000000000000000000005 /* XCRemoteSwiftPackageReference "swift-markdown" */,
 			);
+			preferredProjectObjectVersion = 77;
 			productRefGroup = 93E0D51630302B5600869C04 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -380,38 +384,6 @@
 			targetProxy = 93E0D52D30302B5700869C04 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		B30000000000000000000005 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/groue/GRDB.swift.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 7.11.1;
-			};
-		};
-		B80000000000000000000005 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
-			requirement = {
-				kind = exactVersion;
-				version = 0.8.0;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		B30000000000000000000003 /* GRDB */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B30000000000000000000005 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
-			productName = GRDB;
-		};
-		B80000000000000000000003 /* Markdown */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B80000000000000000000005 /* XCRemoteSwiftPackageReference "swift-markdown" */;
-			productName = Markdown;
-		};
-/* End XCSwiftPackageProductDependency section */
 
 /* Begin XCBuildConfiguration section */
 		93E0D53430302B5700869C04 /* Debug */ = {
@@ -716,6 +688,50 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		B11000000000000000000005 /* XCLocalSwiftPackageReference "Packages/SimpleTokenizer" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/SimpleTokenizer;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		B30000000000000000000005 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.11.1;
+			};
+		};
+		B80000000000000000000005 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		B11000000000000000000003 /* SimpleTokenizer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B11000000000000000000005 /* XCLocalSwiftPackageReference "Packages/SimpleTokenizer" */;
+			productName = SimpleTokenizer;
+		};
+		B30000000000000000000003 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B30000000000000000000005 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		B80000000000000000000003 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B80000000000000000000005 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 93E0D50D30302B5600869C04 /* Project object */;
 }

@@ -10,6 +10,7 @@ struct ReaderApplicationRootView: View {
             if let route, let repository = applicationModel.repository {
                 ReaderView(
                     bookID: route.bookID,
+                    searchTarget: route.searchTarget,
                     repository: repository,
                     settings: settings
                 )
@@ -60,12 +61,14 @@ struct ReaderView: View {
 
     init(
         bookID: UUID,
+        searchTarget: ReaderSearchTarget? = nil,
         repository: any LibraryRepository,
         settings: ReaderSettingsStore
     ) {
         _model = State(
             initialValue: ReaderViewModel(
                 bookID: bookID,
+                searchTarget: searchTarget,
                 repository: repository
             )
         )

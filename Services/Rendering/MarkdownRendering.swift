@@ -74,6 +74,19 @@ nonisolated struct MarkdownRenderedBlock: Equatable, Hashable, Sendable {
     let normalizedText: String
 }
 
+nonisolated enum MarkdownSearchTextExtractor {
+    static func blocks(from markdown: String) -> [MarkdownRenderedBlock] {
+        let document = Document(parsing: markdown)
+        var renderer = ControlledHTMLBodyRenderer(
+            mode: .readerHTML,
+            bookID: UUID(),
+            assets: []
+        )
+        _ = renderer.visit(document)
+        return renderer.blocks
+    }
+}
+
 nonisolated protocol MarkdownRendering: Sendable {
     func render(_ request: MarkdownRenderRequest) async throws -> MarkdownRenderResult
 }

@@ -27,7 +27,8 @@ struct LibraryPersistenceTests {
         #expect(diagnostics.journalMode == "memory")
         #expect(diagnostics.appliedMigrations == [
             LibrarySchema.initialMigrationIdentifier,
-            LibrarySchema.removePublicationMetadataMigrationIdentifier
+            LibrarySchema.removePublicationMetadataMigrationIdentifier,
+            LibrarySchema.fullTextSearchMigrationIdentifier
         ])
         #expect(tables == [
             "assets",
@@ -37,6 +38,12 @@ struct LibraryPersistenceTests {
             "bookmarks",
             "books",
             "chapters",
+            "librarySearchDocuments",
+            "librarySearchIndex",
+            "librarySearchIndex_config",
+            "librarySearchIndex_data",
+            "librarySearchIndex_docsize",
+            "librarySearchIndex_idx",
             "readingProgress",
             "tags"
         ])
@@ -44,8 +51,7 @@ struct LibraryPersistenceTests {
 
     @Test("Publication metadata migration preserves books and library timestamps")
     func publicationMetadataMigrationPreservesBooksAndTimestamps() throws {
-        var configuration = Configuration()
-        configuration.foreignKeysEnabled = true
+        let configuration = LibraryDatabase.databaseConfiguration()
         let queue = try DatabaseQueue(configuration: configuration)
         try LibrarySchema.versionOneMigrator.migrate(queue)
 
@@ -97,7 +103,8 @@ struct LibraryPersistenceTests {
         #expect(migratedBook.updatedAt == Date(timeIntervalSince1970: 1_900_000_060))
         #expect(migrations == [
             LibrarySchema.initialMigrationIdentifier,
-            LibrarySchema.removePublicationMetadataMigrationIdentifier
+            LibrarySchema.removePublicationMetadataMigrationIdentifier,
+            LibrarySchema.fullTextSearchMigrationIdentifier
         ])
     }
 

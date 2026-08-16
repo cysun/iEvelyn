@@ -18,6 +18,14 @@ struct DebugLibraryCommands: Commands {
                     await applicationModel.resetSampleLibrary()
                 }
             }
+
+            Divider()
+
+            Button("Rebuild Search Index") {
+                Task {
+                    await applicationModel.rebuildSearchIndex()
+                }
+            }
         }
     }
 }

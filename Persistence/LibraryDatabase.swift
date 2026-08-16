@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import SimpleTokenizer
 
 nonisolated enum LibraryDatabaseLocation: Equatable, Sendable {
     case production(URL)
@@ -138,10 +139,16 @@ nonisolated final class LibraryDatabase: Sendable {
         return try LibraryDatabase(writer: pool, location: location)
     }
 
-    private static func databaseConfiguration() -> Configuration {
+    static func databaseConfiguration() -> Configuration {
         var configuration = Configuration()
         configuration.foreignKeysEnabled = true
         configuration.busyMode = .timeout(5)
+        configuration.prepareDatabase { database in
+            let result = ievelyn_register_simple_tokenizer(database.sqliteConnection)
+            guard result == 0 else {
+                throw LibrarySearchError.tokenizerRegistrationFailed(code: result)
+            }
+        }
         return configuration
     }
 

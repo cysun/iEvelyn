@@ -3,6 +3,19 @@ import Observation
 
 nonisolated struct ReaderWindowRoute: Codable, Hashable, Sendable {
     let bookID: UUID
+    let searchTarget: ReaderSearchTarget?
+
+    init(bookID: UUID, searchTarget: ReaderSearchTarget? = nil) {
+        self.bookID = bookID
+        self.searchTarget = searchTarget
+    }
+}
+
+nonisolated struct ReaderSearchTarget: Codable, Hashable, Sendable {
+    let chapterID: UUID
+    let stableBlockID: String?
+    let textQuote: String?
+    let fractionInChapter: Double
 }
 
 nonisolated enum ReaderFontFamily: String, CaseIterable, Codable, Sendable {

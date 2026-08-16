@@ -12,17 +12,35 @@ final class LibraryViewModel {
     private(set) var isPerformingOperation = false
     var alert: LibraryViewModelAlert?
     private var isObserving = false
+    private var searchTask: Task<Void, Never>?
     private let coverCache = NSCache<NSUUID, NSData>()
     private let now: @Sendable () -> Date
     private let bookContentImporter: any BookContentImporting
 
-    var destination: LibraryDestination = .allBooks
+    var destination: LibraryDestination = .allBooks {
+        didSet {
+            selectedOrganizationID = nil
+            scheduleSearch()
+        }
+    }
 
     var presentation: LibraryPresentation = .grid
 
     var sortOrder: LibrarySortOrder = .title
 
-    var searchText = ""
+    var searchText = "" {
+        didSet { scheduleSearch() }
+    }
+
+    var searchScope: LibrarySearchScope = .all {
+        didSet { scheduleSearch() }
+    }
+
+    var selectedOrganizationID: String?
+
+    private(set) var searchResults: [LibrarySearchResult] = []
+    private(set) var isSearching = false
+    private(set) var searchErrorMessage: String?
 
     init(
         repository: any LibraryRepository,
@@ -42,13 +60,62 @@ final class LibraryViewModel {
     }
 
     var visibleBooks: [LibraryBook] {
-        LibraryQuery(
+        let destinationBooks = LibraryQuery(
             destination: destination,
-            searchText: searchText,
+            searchText: "",
             sortOrder: sortOrder,
             referenceDate: referenceDate
         )
         .apply(to: books)
+        guard let selectedOrganizationID else { return destinationBooks }
+        return destinationBooks.filter { book in
+            switch destination {
+            case .authors:
+                book.authors.contains {
+                    LibraryNameNormalizer.normalize($0) == selectedOrganizationID
+                }
+            case .tags:
+                book.tags.contains {
+                    LibraryNameNormalizer.normalize($0) == selectedOrganizationID
+                }
+            default:
+                true
+            }
+        }
+    }
+
+    var organizationGroups: [LibraryOrganizationGroup] {
+        let activeBooks = books.filter { !$0.isTrashed }
+        var groups: [String: (name: String, bookIDs: Set<UUID>)] = [:]
+        for book in activeBooks {
+            let values: [String]
+            switch destination {
+            case .authors:
+                values = book.authors
+            case .tags:
+                values = book.tags
+            default:
+                return []
+            }
+            for value in values {
+                let identifier = LibraryNameNormalizer.normalize(value)
+                var group = groups[identifier] ?? (value, [])
+                group.bookIDs.insert(book.id)
+                groups[identifier] = group
+            }
+        }
+        return groups.values
+            .map { LibraryOrganizationGroup(name: $0.name, bookIDs: $0.bookIDs) }
+            .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    var visibleSearchResults: [LibrarySearchResult] {
+        let visibleBookIDs = Set(visibleBooks.map(\.id))
+        return searchResults.filter { visibleBookIDs.contains($0.bookID) }
+    }
+
+    var hasSearchQuery: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     func book(id: LibraryBook.ID) -> LibraryBook? {
@@ -77,6 +144,10 @@ final class LibraryViewModel {
 
     func clearSearch() {
         searchText = ""
+    }
+
+    func selectOrganization(_ group: LibraryOrganizationGroup?) {
+        selectedOrganizationID = group?.id
     }
 
     @discardableResult
@@ -185,12 +256,59 @@ final class LibraryViewModel {
                 books = observedBooks
                 isLoading = false
                 errorMessage = nil
+                if hasSearchQuery {
+                    scheduleSearch(delay: .zero)
+                }
             }
         } catch is CancellationError {
             return
         } catch {
             isLoading = false
             errorMessage = error.localizedDescription
+        }
+    }
+
+    private func scheduleSearch(delay: Duration = .milliseconds(180)) {
+        searchTask?.cancel()
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            searchResults = []
+            searchErrorMessage = nil
+            isSearching = false
+            return
+        }
+
+        let scope = searchScope
+        let trashScope: LibrarySearchTrashScope = destination == .trash ? .trash : .activeLibrary
+        isSearching = true
+        searchErrorMessage = nil
+        searchTask = Task { [weak self] in
+            do {
+                if delay != .zero {
+                    try await Task.sleep(for: delay)
+                }
+                guard let self else { return }
+                let results = try await repository.searchLibrary(
+                    query,
+                    scope: scope,
+                    trashScope: trashScope
+                )
+                try Task.checkCancellation()
+                guard self.searchText.trimmingCharacters(in: .whitespacesAndNewlines) == query,
+                      self.searchScope == scope else {
+                    return
+                }
+                self.searchResults = results
+                self.isSearching = false
+                self.searchErrorMessage = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                guard let self else { return }
+                self.searchResults = []
+                self.isSearching = false
+                self.searchErrorMessage = error.localizedDescription
+            }
         }
     }
 

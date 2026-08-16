@@ -4,6 +4,7 @@ struct LibraryContentView: View {
     @Bindable var model: LibraryViewModel
     let onAddBook: () -> Void
     let onOpenBook: (LibraryBook) -> Void
+    let onOpenSearchResult: (LibrarySearchResult) -> Void
     let onEditBook: (LibraryBook) -> Void
 
     @State private var permanentDeletionCandidate: LibraryBook?
@@ -13,29 +14,23 @@ struct LibraryContentView: View {
             header
             Divider()
 
-            if model.isLoading {
+            if model.hasSearchQuery {
+                LibrarySearchResultsView(
+                    model: model,
+                    onOpenResult: onOpenSearchResult
+                )
+            } else if model.isLoading {
                 loadingState
             } else if let errorMessage = model.errorMessage {
                 errorState(message: errorMessage)
             } else if model.visibleBooks.isEmpty {
                 emptyState
             } else {
-                switch model.presentation {
-                case .grid:
-                    LibraryGridView(
-                        books: model.visibleBooks,
-                        loadCoverImage: model.loadCoverImage,
-                        onCoverLoadError: model.reportCoverLoadFailure,
-                        onOpenBook: onOpenBook,
-                        onBookAction: handleBookAction
-                    )
-                case .list:
-                    LibraryListView(
-                        books: model.visibleBooks,
-                        onOpenBook: onOpenBook,
-                        onBookAction: handleBookAction
-                    )
+                if !model.organizationGroups.isEmpty {
+                    organizationFilters
+                    Divider()
                 }
+                bookCollection
             }
         }
         .navigationTitle(model.destination.title)
@@ -117,6 +112,16 @@ struct LibraryContentView: View {
 
             Spacer()
 
+            if model.hasSearchQuery {
+                Picker("Search Scope", selection: $model.searchScope) {
+                    ForEach(LibrarySearchScope.allCases) { scope in
+                        Text(scope.title).tag(scope)
+                    }
+                }
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("library-search-scope")
+            }
+
             Text(bookCountDescription)
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -125,6 +130,73 @@ struct LibraryContentView: View {
         }
         .padding(.horizontal, LibraryDesignTokens.contentPadding)
         .padding(.vertical, 16)
+    }
+
+    @ViewBuilder
+    private var bookCollection: some View {
+        switch model.presentation {
+        case .grid:
+            LibraryGridView(
+                books: model.visibleBooks,
+                loadCoverImage: model.loadCoverImage,
+                onCoverLoadError: model.reportCoverLoadFailure,
+                onOpenBook: onOpenBook,
+                onBookAction: handleBookAction
+            )
+        case .list:
+            LibraryListView(
+                books: model.visibleBooks,
+                onOpenBook: onOpenBook,
+                onBookAction: handleBookAction
+            )
+        }
+    }
+
+    private var organizationFilters: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                organizationFilterButton(
+                    title: "All",
+                    count: model.books.filter { !$0.isTrashed }.count,
+                    identifier: nil
+                )
+                ForEach(model.organizationGroups) { group in
+                    organizationFilterButton(
+                        title: group.name,
+                        count: group.bookCount,
+                        identifier: group.id
+                    )
+                }
+            }
+            .padding(.horizontal, LibraryDesignTokens.contentPadding)
+            .padding(.vertical, 10)
+        }
+        .scrollIndicators(.hidden)
+        .accessibilityIdentifier("library-organization-filters")
+    }
+
+    private func organizationFilterButton(
+        title: String,
+        count: Int,
+        identifier: String?
+    ) -> some View {
+        let isSelected = model.selectedOrganizationID == identifier
+        return Button {
+            model.selectedOrganizationID = identifier
+        } label: {
+            HStack(spacing: 5) {
+                Text(title)
+                Text(count, format: .number)
+                    .foregroundStyle(isSelected ? .primary : .secondary)
+            }
+            .font(.callout)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 6)
+            .background(isSelected ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.1))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(title), \(count) \(count == 1 ? "book" : "books")")
     }
 
     private var emptyState: some View {
@@ -178,7 +250,12 @@ struct LibraryContentView: View {
     }
 
     private var bookCountDescription: String {
-        let count = model.visibleBooks.count
+        let count = model.hasSearchQuery
+            ? model.visibleSearchResults.count
+            : model.visibleBooks.count
+        if model.hasSearchQuery {
+            return count == 1 ? "1 Result" : "\(count) Results"
+        }
         return count == 1 ? "1 Book" : "\(count) Books"
     }
 

@@ -32,6 +32,25 @@ struct LibraryRootView: View {
                     )
                     Task { await model.markOpened(book) }
                 },
+                onOpenSearchResult: { result in
+                    guard let book = model.book(id: result.bookID), !book.isTrashed else { return }
+                    let searchTarget = result.chapterID.map { chapterID in
+                        ReaderSearchTarget(
+                            chapterID: chapterID,
+                            stableBlockID: result.stableBlockID,
+                            textQuote: result.textQuote,
+                            fractionInChapter: result.fractionInChapter
+                        )
+                    }
+                    openWindow(
+                        id: SceneIdentifier.reader,
+                        value: ReaderWindowRoute(
+                            bookID: result.bookID,
+                            searchTarget: searchTarget
+                        )
+                    )
+                    Task { await model.markOpened(book) }
+                },
                 onEditBook: { book in
                     editorConfiguration = .editing(book)
                 }

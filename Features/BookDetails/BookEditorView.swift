@@ -112,6 +112,27 @@ struct BookEditorView: View {
                     }
                 }
 
+                if showsMoreOptions {
+                    Section("Tags") {
+                        ForEach(metadata.tags.indices, id: \.self) { index in
+                            HStack {
+                                TextField("Tag \(index + 1)", text: $metadata.tags[index])
+                                    .accessibilityIdentifier("book-editor-tag-\(index)")
+
+                                Button("Remove Tag", systemImage: "minus.circle") {
+                                    metadata.tags.remove(at: index)
+                                }
+                                .labelStyle(.iconOnly)
+                            }
+                        }
+
+                        Button("Add Tag", systemImage: "plus") {
+                            metadata.tags.append("")
+                        }
+                        .accessibilityIdentifier("book-editor-add-tag")
+                    }
+                }
+
                 Section("Content") {
                     LabeledContent("File") {
                         Text(contentFileURL?.lastPathComponent ?? contentPlaceholder)
@@ -332,7 +353,7 @@ struct BookEditorView: View {
             } catch is CancellationError {
                 // Dismissal cancels the save without presenting a stale error.
             } catch {
-                if metadata.authors.count > 1 {
+                if metadata.authors.count > 1 || !metadata.tags.isEmpty {
                     showsMoreOptions = true
                 }
                 errorMessage = error.localizedDescription

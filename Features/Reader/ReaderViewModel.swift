@@ -24,9 +24,11 @@ final class ReaderViewModel {
     private let repository: any LibraryRepository
     private let renderer: any MarkdownRendering
     private let now: @Sendable () -> Date
+    private let initialSearchTarget: ReaderSearchTarget?
     private var navigator = ReaderChapterNavigator()
     private var isObserving = false
     private var hasAppliedInitialProgress = false
+    private var hasAppliedInitialSearchTarget = false
     private var renderToken = 0
     private var restoredProgress: ReadingProgress?
     private var currentLocation: (chapterID: Chapter.ID, anchor: ReaderLocationAnchor)?
@@ -46,11 +48,13 @@ final class ReaderViewModel {
 
     init(
         bookID: UUID,
+        searchTarget: ReaderSearchTarget? = nil,
         repository: any LibraryRepository,
         renderer: any MarkdownRendering = MarkdownRenderingService(),
         now: @escaping @Sendable () -> Date = { .now }
     ) {
         self.bookID = bookID
+        initialSearchTarget = searchTarget
         self.repository = repository
         self.renderer = renderer
         self.now = now
@@ -359,6 +363,7 @@ final class ReaderViewModel {
                     observedChapters,
                     preferredChapterID: preferredChapterID
                 )
+                applyInitialSearchTarget(in: observedChapters)
                 bookmarks.sort(by: bookmarkComesBefore)
                 hasAppliedInitialProgress = true
                 isLoadingChapters = false
@@ -400,7 +405,14 @@ final class ReaderViewModel {
     }
 
     private func preferredInitialChapterID(in observedChapters: [Chapter]) -> Chapter.ID? {
-        guard !hasAppliedInitialProgress, !observedChapters.isEmpty,
+        guard !hasAppliedInitialProgress, !observedChapters.isEmpty else {
+            return nil
+        }
+        if let targetChapterID = initialSearchTarget?.chapterID,
+           observedChapters.contains(where: { $0.id == targetChapterID }) {
+            return targetChapterID
+        }
+        guard
               let restoredProgress else {
             return nil
         }
@@ -418,6 +430,23 @@ final class ReaderViewModel {
             if $0.position != $1.position { return $0.position < $1.position }
             return $0.id.databaseString < $1.id.databaseString
         }[index].id
+    }
+
+    private func applyInitialSearchTarget(in observedChapters: [Chapter]) {
+        guard !hasAppliedInitialSearchTarget,
+              let target = initialSearchTarget,
+              observedChapters.contains(where: { $0.id == target.chapterID }) else {
+            return
+        }
+        hasAppliedInitialSearchTarget = true
+        bookmarkNavigation = ReaderBookmarkNavigation(
+            chapterID: target.chapterID,
+            anchor: ReaderLocationAnchor(
+                stableBlockID: target.stableBlockID,
+                textQuote: target.textQuote,
+                fractionInChapter: target.fractionInChapter
+            )
+        )
     }
 
     private func bookmarkComesBefore(_ lhs: Bookmark, _ rhs: Bookmark) -> Bool {

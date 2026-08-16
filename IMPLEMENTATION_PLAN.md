@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 11 — Full-text search and organization.
-- Implementation status: Step 10 was accepted on 2026-08-16; Step 11 has not started.
+- Current milestone: Step 12 — EPUB 3 export.
+- Implementation status: Step 11 was accepted on 2026-08-16; Step 12 has not started.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -54,6 +54,7 @@ Add dependencies only in the step that first needs them:
 | --- | --- | --- |
 | 3 | GRDB | SQLite schema, migrations, repositories, observation, test databases |
 | 8 | `swift-markdown` | Parse canonical Markdown into a semantic syntax tree |
+| 11 | Local `SimpleTokenizer` target adapted from `simple` v0.7.1 | Register the Chinese-first FTS5 `simple 0` tokenizer without pinyin code or dictionaries |
 | 12 | ZIPFoundation | Build EPUB ZIP containers with explicit entry control |
 
 Use Swift Package Manager. Pin versions through the Xcode project or package resolution file and record material compatibility decisions. Do not add broad UI, architecture, or utility frameworks without a demonstrated need.
@@ -695,7 +696,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 9 | Reading experience | Accepted | Dedicated multi-window reading, continuous WebKit chapter rendering, single native table-of-contents control, boundary navigation, book-wide find, responsive persistent appearance controls, native full screen, safe external links, and quiet controls are implemented. Debug/Release builds and all 70 tests (62 unit/integration and eight UI) passed after the sidebar and resizing corrections; the manual checkpoint was accepted on 2026-08-15. |
 | 9A | Whole-book import and update workflow correction | Accepted | Unified Add/Edit Book defaults to a simple title/single-author/content/cover presentation with preserved optional metadata behind Show More Options; complete/replace/append parsing, transactional book-content changes, and removal of Book Info plus all individual chapter controls are implemented; the More menu uses `Edit Book…`; one routed file importer keeps the content and cover pickers independent; legacy 3:4 covers are explicitly excluded from migration. Debug/Release builds and all 72 tests (64 unit/integration and eight UI) passed; the manual checkpoint was accepted on 2026-08-16. |
 | 10 | Progress and bookmarks | Accepted | Debounced semantic progress restoration, Currently Reading updates, and one-click unlabeled bookmark create/navigate/delete are implemented. Stable block anchors fall back through quoted text, nearby context, and chapter fraction after whole-book replacement; append preserves existing anchors. Bookmark labels and notes remain outside the product, with their nullable database fields reserved and always written as null by this UI. No schema migration or dependency was added. Debug/Release builds and all 81 tests (72 unit/integration and nine UI) passed; the manual checkpoint was accepted on 2026-08-16. |
-| 11 | Full-text search and organization | Not started | |
+| 11 | Full-text search and organization | Accepted | External-content FTS5 search uses an audited local adaptation of `simple` v0.7.1 configured strictly as `simple 0`; no pinyin code or dictionary is shipped. Scoped title/subtitle, author, tag, chapter-title, and semantic-content results provide highlighted snippets and direct reader navigation. Indexed mutations, including whole-book Replace/Append, are transactional; Trash is deliberate, bookmarks are excluded, Author/Tag filters show counts, and Debug includes canonical repair. Debug/Release builds and all 88 tests (79 unit/integration and nine UI) passed; the manual checkpoint was accepted on 2026-08-16. |
 | 12 | EPUB 3 export | Not started | |
 | 13 | Backup, restore, and interchange | Not started | |
 | 14 | Separate legacy data exporter | Not started | |

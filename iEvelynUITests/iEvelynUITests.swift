@@ -124,14 +124,19 @@ final class iEvelynUITests: XCTestCase {
         searchField.typeText("Kindred")
 
         XCTAssertTrue(
-            app.buttons["Kindred, by Octavia E. Butler"].waitForExistence(timeout: 5)
+            app.descendants(matching: .any)["library-search-results"].waitForExistence(timeout: 5)
         )
+        let titleResult = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "library-search-result-book:")
+        )
+        XCTAssertTrue(titleResult.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["library-search-scope"].exists)
 
         searchField.typeKey("a", modifierFlags: .command)
         searchField.typeText("no matching book")
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["library-empty-state"].waitForExistence(timeout: 5)
+            app.descendants(matching: .any)["library-search-empty"].waitForExistence(timeout: 5)
         )
 
         app.buttons["Clear Search"].click()
@@ -195,8 +200,14 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(secondAuthor.waitForExistence(timeout: 5))
         secondAuthor.click()
         secondAuthor.typeText("Second Author")
+        app.descendants(matching: .any)["book-editor-add-tag"].click()
+        let firstTag = app.textFields["book-editor-tag-0"]
+        XCTAssertTrue(firstTag.waitForExistence(timeout: 5))
+        firstTag.click()
+        firstTag.typeText("Milestone")
         showMoreOptions.click()
         XCTAssertFalse(secondAuthor.exists)
+        XCTAssertFalse(firstTag.exists)
         XCTAssertFalse(app.textFields["book-editor-subtitle"].exists)
         save.click()
 
@@ -223,6 +234,7 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(reopenedSubtitle.waitForExistence(timeout: 5))
         XCTAssertEqual(reopenedSubtitle.value as? String, "Expanded Subtitle")
         XCTAssertEqual(app.textFields["book-editor-author-1"].value as? String, "Second Author")
+        XCTAssertEqual(app.textFields["book-editor-tag-0"].value as? String, "Milestone")
         showMoreOptions.click()
         editedTitle.click()
         editedTitle.typeKey("a", modifierFlags: .command)
