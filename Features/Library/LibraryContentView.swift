@@ -8,8 +8,11 @@ struct LibraryContentView: View {
     let onEditBook: (LibraryBook) -> Void
     let onExportBook: (LibraryBook) -> Void
     let onExportMarkdown: (LibraryBook) -> Void
+    let onExportBooksAsEPUB: ([LibraryBook]) async -> Bool
+    let onExportBooksAsMarkdown: ([LibraryBook]) async -> Bool
 
     @State private var permanentDeletionCandidate: LibraryBook?
+    @State private var batchConfirmation: LibraryBatchConfirmation?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -38,15 +41,11 @@ struct LibraryContentView: View {
         .navigationTitle(model.destination.title)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button("Add Book", systemImage: "plus") {
-                    onAddBook()
+                if model.isSelectingBooks {
+                    selectionToolbar
+                } else {
+                    ordinaryToolbar
                 }
-                .keyboardShortcut("n", modifiers: [.command, .shift])
-                .help("Add a book")
-                .accessibilityIdentifier("library-add-book")
-
-                sortMenu
-                presentationPicker
             }
         }
         .confirmationDialog(
@@ -75,6 +74,52 @@ struct LibraryContentView: View {
             }
         } message: { _ in
             Text("This cannot be undone. All data owned by this book will be removed.")
+        }
+        .confirmationDialog(
+            batchConfirmationTitle,
+            isPresented: Binding(
+                get: { batchConfirmation != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        batchConfirmation = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible,
+            presenting: batchConfirmation
+        ) { confirmation in
+            switch confirmation {
+            case .moveToTrash(let bookIDs):
+                Button("Move to Trash", role: .destructive) {
+                    batchConfirmation = nil
+                    Task {
+                        await model.moveBooksToTrash(bookIDs: bookIDs)
+                    }
+                }
+                .accessibilityIdentifier("library-confirm-batch-trash")
+            case .clearReadingProgress(let bookIDs):
+                Button("Clear Reading Progress", role: .destructive) {
+                    batchConfirmation = nil
+                    Task {
+                        await model.clearReadingProgress(bookIDs: bookIDs)
+                    }
+                }
+                .accessibilityIdentifier("library-confirm-clear-progress")
+            case .emptyTrash:
+                Button("Empty Trash", role: .destructive) {
+                    batchConfirmation = nil
+                    Task {
+                        await model.emptyTrash()
+                    }
+                }
+                .accessibilityIdentifier("library-confirm-empty-trash")
+            }
+
+            Button("Cancel", role: .cancel) {
+                batchConfirmation = nil
+            }
+        } message: { confirmation in
+            Text(confirmation.message)
         }
     }
 
@@ -125,17 +170,17 @@ struct LibraryContentView: View {
                 .accessibilityIdentifier("library-search-scope")
             }
 
-            Text(bookCountDescription)
+            Text(model.isSelectingBooks ? selectionCountDescription : bookCountDescription)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .contentTransition(.numericText())
                 .accessibilityIdentifier("library-book-count")
 
-            if model.isPreparingEPUB {
+            if model.isPreparingEPUB || model.isPreparingMarkdown || model.isPerformingOperation {
                 ProgressView()
                     .controlSize(.small)
-                    .accessibilityLabel("Preparing EPUB")
-                    .accessibilityIdentifier("library-epub-preparing")
+                    .accessibilityLabel("Performing library operation")
+                    .accessibilityIdentifier("library-operation-progress")
             }
         }
         .padding(.horizontal, LibraryDesignTokens.contentPadding)
@@ -151,13 +196,19 @@ struct LibraryContentView: View {
                 loadCoverImage: model.loadCoverImage,
                 onCoverLoadError: model.reportCoverLoadFailure,
                 onOpenBook: onOpenBook,
-                onBookAction: handleBookAction
+                onBookAction: handleBookAction,
+                isSelecting: model.isSelectingBooks,
+                selectedBookIDs: model.selectedBookIDs,
+                onToggleSelection: model.toggleBookSelection
             )
         case .list:
             LibraryListView(
                 books: model.visibleBooks,
                 onOpenBook: onOpenBook,
-                onBookAction: handleBookAction
+                onBookAction: handleBookAction,
+                isSelecting: model.isSelectingBooks,
+                selectedBookIDs: model.selectedBookIDs,
+                onToggleSelection: model.toggleBookSelection
             )
         }
     }
@@ -242,8 +293,83 @@ struct LibraryContentView: View {
         } label: {
             Label("Sort: \(model.sortOrder.title)", systemImage: "arrow.up.arrow.down")
         }
+        .accessibilityLabel("Sort")
+        .accessibilityValue(model.sortOrder.title)
         .help("Sort books")
         .accessibilityIdentifier("library-sort-menu")
+    }
+
+    @ViewBuilder
+    private var ordinaryToolbar: some View {
+        Button("Add Book", systemImage: "plus") {
+            onAddBook()
+        }
+        .keyboardShortcut("n", modifiers: [.command, .shift])
+        .help("Add a book")
+        .accessibilityIdentifier("library-add-book")
+
+        if model.destination == .trash {
+            Button("Empty Trash…", systemImage: "trash.slash", role: .destructive) {
+                batchConfirmation = .emptyTrash(model.books.filter(\.isTrashed).count)
+            }
+            .disabled(model.books.allSatisfy { !$0.isTrashed })
+            .help("Permanently delete every book in Trash")
+            .accessibilityIdentifier("library-empty-trash")
+        } else if !model.hasSearchQuery && !model.visibleBooks.isEmpty {
+            Button("Select", systemImage: "checkmark.circle") {
+                model.beginBookSelection()
+            }
+            .help("Select books for batch actions")
+            .accessibilityIdentifier("library-select-books")
+        }
+
+        sortMenu
+        presentationPicker
+    }
+
+    @ViewBuilder
+    private var selectionToolbar: some View {
+        Button("Cancel") {
+            model.endBookSelection()
+        }
+        .keyboardShortcut(.cancelAction)
+        .accessibilityIdentifier("library-cancel-selection")
+
+        Button(
+            model.areAllVisibleBooksSelected ? "Deselect All" : "Select All",
+            systemImage: model.areAllVisibleBooksSelected
+                ? "checkmark.circle.badge.xmark"
+                : "checkmark.circle"
+        ) {
+            model.toggleSelectAllVisibleBooks()
+        }
+        .accessibilityIdentifier("library-select-all")
+
+        Menu("Actions", systemImage: "ellipsis.circle") {
+            Button("Export EPUBs…", systemImage: "square.and.arrow.up") {
+                exportSelectedBooksAsEPUB()
+            }
+
+            Button("Export Markdown…", systemImage: "doc.plaintext") {
+                exportSelectedBooksAsMarkdown()
+            }
+
+            Divider()
+
+            Button("Clear Reading Progress…", systemImage: "arrow.counterclockwise") {
+                batchConfirmation = .clearReadingProgress(model.selectedBooksWithProgress.map(\.id))
+            }
+            .disabled(model.selectedBooksWithProgress.isEmpty)
+
+            Button("Move to Trash…", systemImage: "trash", role: .destructive) {
+                batchConfirmation = .moveToTrash(model.selectedBooks.map(\.id))
+            }
+        }
+        .disabled(model.selectedBooks.isEmpty || model.isPerformingOperation)
+        .help("Actions for selected books")
+        .accessibilityIdentifier("library-selection-actions")
+
+        presentationPicker
     }
 
     private var presentationPicker: some View {
@@ -270,6 +396,11 @@ struct LibraryContentView: View {
         return count == 1 ? "1 Book" : "\(count) Books"
     }
 
+    private var selectionCountDescription: String {
+        let count = model.selectedBooks.count
+        return count == 1 ? "1 Selected" : "\(count) Selected"
+    }
+
     private var hasSearchText: Bool {
         !model.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -293,6 +424,10 @@ struct LibraryContentView: View {
             Task {
                 await model.toggleFavorite(for: book)
             }
+        case .clearReadingProgress:
+            Task {
+                await model.clearReadingProgress(for: book)
+            }
         case .moveToTrash:
             Task {
                 await model.moveToTrash(book)
@@ -304,6 +439,28 @@ struct LibraryContentView: View {
         case .requestPermanentDeletion:
             permanentDeletionCandidate = book
         }
+    }
+
+    private func exportSelectedBooksAsEPUB() {
+        let books = model.selectedBooks
+        Task {
+            if await onExportBooksAsEPUB(books) {
+                model.endBookSelection()
+            }
+        }
+    }
+
+    private func exportSelectedBooksAsMarkdown() {
+        let books = model.selectedBooks
+        Task {
+            if await onExportBooksAsMarkdown(books) {
+                model.endBookSelection()
+            }
+        }
+    }
+
+    private var batchConfirmationTitle: String {
+        batchConfirmation?.title ?? "Confirm Library Operation"
     }
 
     private var emptyStateTitle: String {
@@ -336,5 +493,46 @@ struct LibraryContentView: View {
         }
 
         return "This collection does not contain any books yet."
+    }
+}
+
+private enum LibraryBatchConfirmation: Identifiable {
+    case moveToTrash([UUID])
+    case clearReadingProgress([UUID])
+    case emptyTrash(Int)
+
+    var id: String {
+        switch self {
+        case .moveToTrash:
+            "move-to-trash"
+        case .clearReadingProgress:
+            "clear-reading-progress"
+        case .emptyTrash:
+            "empty-trash"
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .moveToTrash(let bookIDs):
+            let count = bookIDs.count
+            return "Move \(count) \(count == 1 ? "Book" : "Books") to Trash?"
+        case .clearReadingProgress(let bookIDs):
+            let count = bookIDs.count
+            return "Clear Reading Progress for \(count) \(count == 1 ? "Book" : "Books")?"
+        case .emptyTrash:
+            return "Empty Trash?"
+        }
+    }
+
+    var message: String {
+        switch self {
+        case .moveToTrash:
+            "The selected books can be restored from Trash."
+        case .clearReadingProgress:
+            "The selected books will leave Currently Reading. Bookmarks and Recently Opened history will be preserved."
+        case .emptyTrash(let count):
+            "This permanently deletes all \(count) \(count == 1 ? "book" : "books") in Trash and cannot be undone."
+        }
     }
 }

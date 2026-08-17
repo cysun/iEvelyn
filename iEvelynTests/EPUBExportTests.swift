@@ -352,6 +352,38 @@ struct EPUBExportTests {
         #expect(!model.isPreparingEPUB)
     }
 
+    @Test("Batch export preserves selection order, rejects partial preflight, and uniquifies names")
+    @MainActor
+    func batchExportPreparation() async {
+        let first = makeBook(title: "Shared Title")
+        let second = makeBook(title: "Shared Title")
+        let books = [first, second]
+        let repository = EPUBFixtureRepository(book: first, chapters: [])
+        let model = LibraryViewModel(
+            repository: repository,
+            initialBooks: books,
+            epubExporter: BatchEPUBExporter()
+        )
+
+        let presentations = await model.prepareEPUBExports(for: books)
+        #expect(presentations?.map(\.file.data) == [Data(first.title.utf8), Data(second.title.utf8)])
+        #expect(
+            BookBatchFilename.uniqued(["Shared Title.epub", "shared title.epub"])
+                == ["Shared Title.epub", "shared title 2.epub"]
+        )
+
+        let failingModel = LibraryViewModel(
+            repository: repository,
+            initialBooks: books,
+            epubExporter: BatchEPUBExporter(failingBookID: second.id)
+        )
+        let failedPresentations = await failingModel.prepareEPUBExports(for: books)
+        #expect(failedPresentations?.count == nil)
+        #expect(failingModel.alert?.title == "Could Not Export Shared Title as EPUB")
+        #expect(failingModel.alert?.message.hasPrefix("No files were exported.") == true)
+        #expect(!failingModel.isPreparingEPUB)
+    }
+
     private func makeBook(
         id: UUID = UUID(),
         title: String,
@@ -528,6 +560,24 @@ nonisolated private struct FailingEPUBExporter: EPUBExporting, Sendable {
 
     func export(book: LibraryBook) async throws -> EPUBExportFile {
         throw error
+    }
+}
+
+nonisolated private struct BatchEPUBExporter: EPUBExporting, Sendable {
+    var failingBookID: UUID?
+
+    init(failingBookID: UUID? = nil) {
+        self.failingBookID = failingBookID
+    }
+
+    func export(book: LibraryBook) async throws -> EPUBExportFile {
+        if book.id == failingBookID {
+            throw EPUBExportError.missingChapters
+        }
+        return EPUBExportFile(
+            data: Data(book.title.utf8),
+            suggestedFilename: EPUBFilename.suggested(for: book.title)
+        )
     }
 }
 

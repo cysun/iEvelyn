@@ -119,6 +119,8 @@ struct LibraryQueryTests {
             referenceDate: referenceDate
         )
 
+        #expect(firstWindow.sortOrder == .recentlyOpened)
+        #expect(secondWindow.sortOrder == .recentlyOpened)
         firstWindow.presentation = .list
         firstWindow.searchText = "Kindred"
 

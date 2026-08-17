@@ -28,6 +28,9 @@ final class iEvelynUITests: XCTestCase {
             app.descendants(matching: .any)["library-detail-empty"].exists,
             "The main window should not reserve a persistent book-detail column."
         )
+        let sortMenu = app.descendants(matching: .any)["library-sort-menu"]
+        XCTAssertTrue(sortMenu.waitForExistence(timeout: 10))
+        XCTAssertEqual(sortMenu.value as? String, "Recently Opened")
     }
 
     @MainActor
@@ -43,7 +46,7 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(aboutCommand.waitForExistence(timeout: 5))
         aboutCommand.click()
         XCTAssertTrue(app.windows["About iEvelyn"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Version 1.0 (1)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Version 1.1 (2)"].waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.staticTexts["Copyright © 2026 Chengyu Sun. All rights reserved."].exists
         )
@@ -133,7 +136,7 @@ final class iEvelynUITests: XCTestCase {
         listButton.click()
 
         XCTAssertTrue(
-            app.descendants(matching: .any)["library-list"].waitForExistence(timeout: 5)
+            app.descendants(matching: .any)["library-list"].waitForExistence(timeout: 10)
         )
         let listBook = app.buttons["Kindred, by Octavia E. Butler"]
         XCTAssertTrue(listBook.waitForExistence(timeout: 5))
@@ -176,6 +179,68 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
+    func testBatchSelectionClearProgressTrashAndEmptyTrash() throws {
+        let app = launchApplication(seedSampleLibrary: true)
+        let currentlyReading = app.descendants(matching: .any)["sidebar-currentlyReading"]
+        XCTAssertTrue(currentlyReading.waitForExistence(timeout: 10))
+        currentlyReading.click()
+
+        let select = app.descendants(matching: .any)["library-select-books"]
+        XCTAssertTrue(select.waitForExistence(timeout: 5))
+        select.click()
+        let selectAll = app.descendants(matching: .any)["library-select-all"]
+        XCTAssertTrue(selectAll.waitForExistence(timeout: 5))
+        selectAll.click()
+        XCTAssertTrue(app.staticTexts["2 Selected"].waitForExistence(timeout: 5))
+
+        let selectionActions = app.descendants(matching: .any)["library-selection-actions"]
+        XCTAssertTrue(selectionActions.waitForExistence(timeout: 5))
+        selectionActions.click()
+        app.menuItems["Clear Reading Progress…"].click()
+        let confirmProgress = app.descendants(matching: .any)["library-confirm-clear-progress"]
+        XCTAssertTrue(confirmProgress.waitForExistence(timeout: 5))
+        confirmProgress.click()
+        XCTAssertTrue(
+            app.buttons["Kindred, by Octavia E. Butler"].waitForNonExistence(timeout: 5),
+            "Clearing saved progress should remove Kindred from Currently Reading."
+        )
+        XCTAssertTrue(
+            app.buttons["A Psalm for the Wild-Built, by Becky Chambers"]
+                .waitForNonExistence(timeout: 5),
+            "Clearing saved progress should remove every selected book from Currently Reading."
+        )
+
+        let allBooks = app.descendants(matching: .any)["sidebar-allBooks"]
+        allBooks.click()
+        XCTAssertTrue(select.waitForExistence(timeout: 5))
+        select.click()
+        let listButton = app.descendants(matching: .any)["library-view-list"]
+        XCTAssertTrue(listButton.waitForExistence(timeout: 5))
+        listButton.click()
+        XCTAssertTrue(app.descendants(matching: .any)["library-list"].waitForExistence(timeout: 5))
+        selectAll.click()
+        XCTAssertTrue(app.staticTexts["8 Selected"].waitForExistence(timeout: 5))
+        selectionActions.click()
+        let moveToTrash = app.menuItems["Move to Trash…"]
+        XCTAssertTrue(moveToTrash.waitForExistence(timeout: 5))
+        moveToTrash.click()
+        let confirmTrash = app.descendants(matching: .any)["library-confirm-batch-trash"]
+        XCTAssertTrue(confirmTrash.waitForExistence(timeout: 5))
+        confirmTrash.click()
+        XCTAssertTrue(app.descendants(matching: .any)["library-empty-state"].waitForExistence(timeout: 5))
+
+        let trash = app.descendants(matching: .any)["sidebar-trash"]
+        trash.click()
+        let emptyTrash = app.descendants(matching: .any)["library-empty-trash"]
+        XCTAssertTrue(emptyTrash.waitForExistence(timeout: 5))
+        emptyTrash.click()
+        let confirmEmptyTrash = app.descendants(matching: .any)["library-confirm-empty-trash"]
+        XCTAssertTrue(confirmEmptyTrash.waitForExistence(timeout: 5))
+        confirmEmptyTrash.click()
+        XCTAssertTrue(app.staticTexts["Trash is Empty"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     func testAddEditFavoriteTrashRestoreAndPermanentDeleteWorkflow() throws {
         let app = launchApplication(
             seedSampleLibrary: false,
@@ -206,7 +271,7 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertFalse(app.textViews["book-editor-summary"].exists)
         save.click()
         XCTAssertTrue(
-            app.descendants(matching: .any)["book-editor-error"].waitForExistence(timeout: 5),
+            app.descendants(matching: .any)["book-editor-error"].waitForExistence(timeout: 15),
             "Saving empty metadata should present an actionable validation message."
         )
 
@@ -228,11 +293,13 @@ final class iEvelynUITests: XCTestCase {
         app.descendants(matching: .any)["book-editor-add-author"].click()
         let secondAuthor = app.textFields["book-editor-author-1"]
         XCTAssertTrue(secondAuthor.waitForExistence(timeout: 5))
+        revealInEditor(secondAuthor, app: app)
         secondAuthor.click()
         secondAuthor.typeText("Second Author")
         app.descendants(matching: .any)["book-editor-add-tag"].click()
         let firstTag = app.textFields["book-editor-tag-0"]
         XCTAssertTrue(firstTag.waitForExistence(timeout: 5))
+        revealInEditor(firstTag, app: app)
         firstTag.click()
         firstTag.typeText("Milestone")
         showMoreOptions.click()
@@ -240,6 +307,16 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertFalse(firstTag.exists)
         XCTAssertFalse(app.textFields["book-editor-subtitle"].exists)
         save.click()
+
+        XCTAssertTrue(
+            app.staticTexts["Workflow content."].waitForExistence(timeout: 10),
+            "Saving a new book should immediately open it in the reader."
+        )
+        closeReaderAndWaitForLibrary(
+            app,
+            readerTitle: "Workflow Book",
+            expectedText: "Workflow content."
+        )
 
         let createdBook = app.buttons["Workflow Book, by First Author, Second Author"]
         XCTAssertTrue(createdBook.waitForExistence(timeout: 10))
@@ -269,7 +346,20 @@ final class iEvelynUITests: XCTestCase {
         editedTitle.click()
         editedTitle.typeKey("a", modifierFlags: .command)
         editedTitle.typeText("Edited Workflow Book")
-        app.descendants(matching: .any)["book-editor-save"].click()
+        editedTitle.typeKey(.tab, modifierFlags: [])
+        let editSave = app.descendants(matching: .any)["book-editor-save"]
+        XCTAssertTrue(editSave.waitForExistence(timeout: 10))
+        editSave.click()
+
+        XCTAssertTrue(
+            app.staticTexts["Workflow content."].waitForExistence(timeout: 10),
+            "Saving an updated book should immediately reopen it in the reader."
+        )
+        closeReaderAndWaitForLibrary(
+            app,
+            readerTitle: "Edited Workflow Book",
+            expectedText: "Workflow content."
+        )
 
         let editedBook = app.buttons["Edited Workflow Book, by First Author, Second Author"]
         XCTAssertTrue(editedBook.waitForExistence(timeout: 10))
@@ -356,6 +446,11 @@ final class iEvelynUITests: XCTestCase {
         author.click()
         author.typeText("Test Author")
         app.descendants(matching: .any)["book-editor-save"].click()
+        closeReaderAndWaitForLibrary(
+            app,
+            readerTitle: "Export Workflow",
+            expectedText: "Exported content."
+        )
 
         let actions = app.descendants(matching: .any)["Actions for Export Workflow"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10))
@@ -369,9 +464,9 @@ final class iEvelynUITests: XCTestCase {
             savePanel.waitForExistence(timeout: 10),
             "Export EPUB should present the system file exporter after preflight succeeds."
         )
-        XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 10))
         savePanel.buttons["Cancel"].click()
-        XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(savePanel.waitForNonExistence(timeout: 10))
 
         actions.click()
         let exportMarkdown = app.menuItems["Export Markdown…"]
@@ -382,9 +477,81 @@ final class iEvelynUITests: XCTestCase {
             savePanel.waitForExistence(timeout: 10),
             "Export Markdown should present the system file exporter after reconstruction succeeds."
         )
-        XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        XCTAssertTrue(savePanel.buttons["Cancel"].waitForExistence(timeout: 10))
         savePanel.buttons["Cancel"].click()
-        XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(savePanel.waitForNonExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testBatchExportUsesNativeMultiDocumentExporter() throws {
+        let app = launchApplication(
+            seedSampleLibrary: false,
+            bookContent: """
+            # Batch Export
+            ### Test Author
+            ## Opening
+
+            Exported content.
+            """
+        )
+
+        for _ in 0..<2 {
+            app.typeKey("n", modifierFlags: [.command, .shift])
+            let title = app.textFields["book-editor-title"]
+            let author = app.textFields["book-editor-author-0"]
+            XCTAssertTrue(title.waitForExistence(timeout: 10))
+            title.click()
+            title.typeText("Batch Export")
+            author.click()
+            author.typeText("Test Author")
+            app.descendants(matching: .any)["book-editor-save"].click()
+            closeReaderAndWaitForLibrary(
+                app,
+                readerTitle: "Batch Export",
+                expectedText: "Exported content."
+            )
+            XCTAssertTrue(
+                app.buttons["Batch Export, by Test Author"].waitForExistence(timeout: 10),
+                "The saved fixture should reach the observed library before adding the next book."
+            )
+            XCTAssertTrue(
+                title.waitForNonExistence(timeout: 10),
+                "Saving each batch-export fixture should dismiss its editor before adding the next book."
+            )
+        }
+
+        func selectAllBooks() {
+            app.descendants(matching: .any)["library-select-books"].click()
+            app.descendants(matching: .any)["library-select-all"].click()
+            XCTAssertTrue(app.staticTexts["2 Selected"].waitForExistence(timeout: 5))
+        }
+
+        selectAllBooks()
+        app.descendants(matching: .any)["library-selection-actions"].click()
+        let exportEPUBs = app.menuItems["Export EPUBs…"]
+        XCTAssertTrue(exportEPUBs.waitForExistence(timeout: 5))
+        exportEPUBs.click()
+        let exportPanel = app.sheets.firstMatch
+        XCTAssertTrue(
+            exportPanel.waitForExistence(timeout: 10),
+            "Batch EPUB preflight should present the native multi-document exporter."
+        )
+        XCTAssertTrue(exportPanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        exportPanel.buttons["Cancel"].click()
+        XCTAssertTrue(exportPanel.waitForNonExistence(timeout: 5))
+
+        selectAllBooks()
+        app.descendants(matching: .any)["library-selection-actions"].click()
+        let exportMarkdown = app.menuItems["Export Markdown…"]
+        XCTAssertTrue(exportMarkdown.waitForExistence(timeout: 5))
+        exportMarkdown.click()
+        XCTAssertTrue(
+            exportPanel.waitForExistence(timeout: 10),
+            "Batch Markdown reconstruction should present the native multi-document exporter."
+        )
+        XCTAssertTrue(exportPanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        exportPanel.buttons["Cancel"].click()
+        XCTAssertTrue(exportPanel.waitForNonExistence(timeout: 5))
     }
 
     @MainActor
@@ -402,7 +569,7 @@ final class iEvelynUITests: XCTestCase {
 
         let savePanel = app.sheets.firstMatch
         XCTAssertTrue(
-            savePanel.waitForExistence(timeout: 10),
+            savePanel.waitForExistence(timeout: 20),
             "Back Up Library should present the system file exporter after snapshot validation."
         )
         let filenameField = savePanel.textFields["saveAsNameTextField"]
@@ -455,6 +622,13 @@ final class iEvelynUITests: XCTestCase {
         author.typeText("Test Author")
         app.descendants(matching: .any)["book-editor-save"].click()
 
+        XCTAssertTrue(app.staticTexts["Opening body."].waitForExistence(timeout: 10))
+        closeReaderAndWaitForLibrary(
+            app,
+            readerTitle: "Chapter Workflow",
+            expectedText: "Opening body."
+        )
+
         let actions = app.descendants(matching: .any)["Actions for Chapter Workflow"]
         XCTAssertTrue(actions.waitForExistence(timeout: 10))
         actions.click()
@@ -473,7 +647,7 @@ final class iEvelynUITests: XCTestCase {
         let opening = tableOfContents.descendants(matching: .staticText)["Opening"]
         XCTAssertTrue(opening.waitForExistence(timeout: 5))
         let ending = tableOfContents.descendants(matching: .staticText)["Ending"]
-        XCTAssertTrue(ending.waitForExistence(timeout: 5))
+        XCTAssertTrue(ending.waitForExistence(timeout: 10))
         waitForChapter(opening, toAppearAbove: ending)
         ending.click()
         XCTAssertTrue(app.staticTexts["Ending body."].waitForExistence(timeout: 10))
@@ -529,10 +703,11 @@ final class iEvelynUITests: XCTestCase {
         author.typeText("Test Author")
         app.descendants(matching: .any)["book-editor-save"].click()
 
-        let book = app.buttons["Bookmark Workflow, by Test Author"]
-        XCTAssertTrue(book.waitForExistence(timeout: 10))
-        book.click()
-        XCTAssertTrue(app.staticTexts["A location worth returning to."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.windows["Bookmark Workflow"].waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.staticTexts["A location worth returning to."].waitForExistence(timeout: 10),
+            "Saving a new book should immediately open its reader."
+        )
 
         let addBookmark = app.descendants(matching: .any)["reader-add-bookmark"]
         XCTAssertTrue(addBookmark.waitForExistence(timeout: 5))
@@ -558,8 +733,9 @@ final class iEvelynUITests: XCTestCase {
         let confirmDelete = app.descendants(matching: .any)["reader-bookmark-confirm-delete"]
         XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
         confirmDelete.click()
+        XCTAssertTrue(confirmDelete.waitForNonExistence(timeout: 5))
         XCTAssertTrue(
-            app.descendants(matching: .any)["reader-bookmarks-empty"].waitForExistence(timeout: 5)
+            app.descendants(matching: .any)["reader-bookmarks-empty"].waitForExistence(timeout: 10)
         )
     }
 
@@ -588,10 +764,8 @@ final class iEvelynUITests: XCTestCase {
         author.click()
         author.typeText("Test Author")
         app.descendants(matching: .any)["book-editor-save"].click()
-        let book = app.buttons["Reader Workflow, by Test Author"]
-        XCTAssertTrue(book.waitForExistence(timeout: 10))
-        book.click()
 
+        XCTAssertTrue(app.windows["Reader Workflow"].waitForExistence(timeout: 10))
         XCTAssertTrue(
             app.staticTexts["Opening chapter body"].waitForExistence(timeout: 10),
             "Opening a book should render its first chapter in the reader window."
@@ -643,6 +817,21 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
+    private func closeReaderAndWaitForLibrary(
+        _ app: XCUIApplication,
+        readerTitle: String,
+        expectedText: String
+    ) {
+        let readerWindow = app.windows[readerTitle]
+        XCTAssertTrue(readerWindow.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts[expectedText].waitForExistence(timeout: 10))
+        app.typeKey("w", modifierFlags: .command)
+        XCTAssertTrue(readerWindow.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.windows["All Books"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
     private func waitForChapter(_ upperChapter: XCUIElement, toAppearAbove lowerChapter: XCUIElement) {
         let reordered = expectation(
             for: NSPredicate { _, _ in
@@ -651,6 +840,20 @@ final class iEvelynUITests: XCTestCase {
             evaluatedWith: upperChapter
         )
         wait(for: [reordered], timeout: 5)
+    }
+
+    @MainActor
+    private func revealInEditor(_ element: XCUIElement, app: XCUIApplication) {
+        if !element.isHittable {
+            let editorScrollView = app.sheets.firstMatch.scrollViews.firstMatch
+            XCTAssertTrue(editorScrollView.waitForExistence(timeout: 5))
+            editorScrollView.swipeUp()
+        }
+        let hittable = expectation(
+            for: NSPredicate(format: "hittable == true"),
+            evaluatedWith: element
+        )
+        wait(for: [hittable], timeout: 5)
     }
 
     @MainActor

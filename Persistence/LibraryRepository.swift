@@ -26,9 +26,11 @@ nonisolated protocol LibraryRepository: Sendable {
     ) async throws
     func setFavorite(bookID: UUID, isFavorite: Bool, at date: Date) async throws
     func moveBookToTrash(id: UUID, at date: Date) async throws
+    func moveBooksToTrash(ids: [UUID], at date: Date) async throws
     func restoreBook(id: UUID, at date: Date) async throws
     func markBookOpened(id: UUID, at date: Date) async throws
     func deleteBookPermanently(id: UUID) async throws
+    func emptyTrash() async throws -> Int
     func importCover(bookID: UUID, from sourceURL: URL, at date: Date) async throws
     func removeCover(bookID: UUID, at date: Date) async throws
     func coverThumbnailData(for asset: Asset) async throws -> Data
@@ -38,6 +40,7 @@ nonisolated protocol LibraryRepository: Sendable {
     func chapters(forBookID bookID: UUID) async throws -> [Chapter]
     func readingProgress(forBookID bookID: UUID) async throws -> ReadingProgress?
     func saveReadingProgress(_ progress: ReadingProgress) async throws
+    func clearReadingProgress(bookIDs: [UUID]) async throws
     func observeBookmarks(forBookID bookID: UUID) -> AsyncThrowingStream<[Bookmark], Error>
     func createBookmark(_ bookmark: Bookmark) async throws
     func deleteBookmark(id: UUID, bookID: UUID) async throws
@@ -152,6 +155,10 @@ extension LibraryRepository {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
+    func moveBooksToTrash(ids: [UUID], at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
     func restoreBook(id: UUID, at date: Date) async throws {
         throw LibraryRepositoryError.readOnlyRepository
     }
@@ -161,6 +168,10 @@ extension LibraryRepository {
     }
 
     func deleteBookPermanently(id: UUID) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func emptyTrash() async throws -> Int {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
@@ -199,6 +210,10 @@ extension LibraryRepository {
     }
 
     func saveReadingProgress(_ progress: ReadingProgress) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func clearReadingProgress(bookIDs: [UUID]) async throws {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
@@ -261,9 +276,18 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
     }
 
     func observeLibraryBooks() -> AsyncThrowingStream<[LibraryBook], Error> {
-        let observation = ValueObservation.tracking { database in
-            try Self.fetchLibraryBooks(database)
-        }
+        let observation = ValueObservation.tracking(
+            regions: [
+                Book.all(),
+                Author.all(),
+                BookAuthor.all(),
+                Tag.all(),
+                BookTag.all(),
+                ReadingProgress.all(),
+                Asset.all()
+            ],
+            fetch: Self.fetchLibraryBooks
+        )
         let values = observation.values(
             in: database.writer,
             bufferingPolicy: .bufferingNewest(1)
@@ -450,6 +474,29 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 book.lastOpenedAt = progress.lastReadAt
                 try book.update(database)
             }
+        }
+    }
+
+    func clearReadingProgress(bookIDs: [UUID]) async throws {
+        let bookIDs = Self.uniqueBookIDs(bookIDs)
+        guard !bookIDs.isEmpty else { return }
+
+        try await database.write { database in
+            for bookID in bookIDs {
+                guard let book = try Book.fetchOne(database, key: bookID.databaseString) else {
+                    throw LibraryRepositoryError.bookNotFound
+                }
+                guard book.trashedAt == nil else {
+                    throw LibraryRepositoryError.bookIsInTrash
+                }
+            }
+
+            for bookID in bookIDs {
+                _ = try ReadingProgress.deleteOne(database, key: bookID.databaseString)
+            }
+            // The library projection spans several independently fetched tables.
+            // Explicitly invalidate its progress region after primary-key deletes.
+            try database.notifyChanges(in: ReadingProgress.all())
         }
     }
 
@@ -765,6 +812,28 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         }
     }
 
+    func moveBooksToTrash(ids: [UUID], at date: Date = .now) async throws {
+        let bookIDs = Self.uniqueBookIDs(ids)
+        guard !bookIDs.isEmpty else { return }
+
+        try await database.write { database in
+            var books: [Book] = []
+            books.reserveCapacity(bookIDs.count)
+            for bookID in bookIDs {
+                guard let book = try Book.fetchOne(database, key: bookID.databaseString) else {
+                    throw LibraryRepositoryError.bookNotFound
+                }
+                books.append(book)
+            }
+
+            for var book in books where book.trashedAt == nil {
+                book.trashedAt = date
+                book.updatedAt = date
+                try book.update(database)
+            }
+        }
+    }
+
     func restoreBook(id: UUID, at date: Date = .now) async throws {
         try await database.write { database in
             guard var book = try Book.fetchOne(database, key: id.databaseString) else {
@@ -826,6 +895,25 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 remainingFileCount: report.failedRemovalCount
             )
         }
+    }
+
+    func emptyTrash() async throws -> Int {
+        let bookIDs = try await database.write { database in
+            let books = try Book.fetchAll(
+                database,
+                sql: "SELECT * FROM books WHERE trashedAt IS NOT NULL ORDER BY id"
+            )
+            for book in books {
+                _ = try book.delete(database)
+            }
+            return books.map(\.id)
+        }
+
+        try await removeOwnedStorage(
+            bookIDs: bookIDs,
+            completedAction: "Trash was emptied"
+        )
+        return bookIDs.count
     }
 
     func importCover(
@@ -1333,6 +1421,27 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         try await database.write { database in
             try bookmark.insert(database)
         }
+    }
+
+    private func removeOwnedStorage(
+        bookIDs: [UUID],
+        completedAction: String
+    ) async throws {
+        var failedRemovalCount = 0
+        for bookID in bookIDs {
+            failedRemovalCount += await assetStore.removeBookStorage(bookID: bookID)
+                .failedRemovalCount
+        }
+        if failedRemovalCount > 0 {
+            throw LibraryAssetError.cleanupIncomplete(
+                completedAction: completedAction,
+                remainingFileCount: failedRemovalCount
+            )
+        }
+    }
+
+    private static func uniqueBookIDs(_ bookIDs: [UUID]) -> [UUID] {
+        Array(Set(bookIDs)).sorted { $0.databaseString < $1.databaseString }
     }
 
     private static func fetchLibraryBooks(_ database: Database) throws -> [LibraryBook] {

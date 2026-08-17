@@ -122,6 +122,75 @@ struct BookManagementTests {
         #expect(try await repository.fetchLibraryBooks().isEmpty)
     }
 
+    @Test("Batch Trash operations validate atomically and Empty Trash deletes every trashed book")
+    func batchTrashAndEmptyTrashAreAtomic() async throws {
+        let repository = try makeRepository()
+        let firstID = try await repository.createBook(
+            metadata: BookMetadataInput(title: "First", authors: ["Author"]),
+            at: createdAt
+        )
+        let secondID = try await repository.createBook(
+            metadata: BookMetadataInput(title: "Second", authors: ["Author"]),
+            at: createdAt
+        )
+        let activeID = try await repository.createBook(
+            metadata: BookMetadataInput(title: "Active", authors: ["Author"]),
+            at: createdAt
+        )
+        let trashedAt = createdAt.addingTimeInterval(30)
+
+        try await repository.moveBooksToTrash(
+            ids: [secondID, firstID, secondID],
+            at: trashedAt
+        )
+        var books = try await repository.fetchLibraryBooks()
+        #expect(Set(books.filter(\.isTrashed).map(\.id)) == [firstID, secondID])
+        #expect(books.first(where: { $0.id == activeID })?.isTrashed == false)
+
+        await expectRepositoryError(.bookNotFound) {
+            try await repository.moveBooksToTrash(
+                ids: [activeID, UUID()],
+                at: trashedAt.addingTimeInterval(1)
+            )
+        }
+        #expect(try await repository.fetchBook(id: activeID)?.trashedAt == nil)
+
+        #expect(try await repository.emptyTrash() == 2)
+        books = try await repository.fetchLibraryBooks()
+        #expect(books.map(\.id) == [activeID])
+        #expect(try await repository.emptyTrash() == 0)
+    }
+
+    @MainActor
+    @Test("Selection mode selects the visible collection and resets across destinations")
+    func selectionModeTracksVisibleBooks() {
+        let first = makeLibraryBook(title: "Alpha")
+        let second = makeLibraryBook(title: "Beta")
+        let third = makeLibraryBook(title: "Gamma")
+        let model = LibraryViewModel(
+            repository: ReadOnlyBookRepository(books: [first, second, third]),
+            initialBooks: [first, second, third],
+            referenceDate: createdAt
+        )
+
+        model.beginBookSelection()
+        #expect(model.isSelectingBooks)
+        #expect(model.selectedBooks.isEmpty)
+
+        model.toggleBookSelection(second)
+        #expect(model.selectedBooks.map(\.id) == [second.id])
+        model.toggleSelectAllVisibleBooks()
+        #expect(model.areAllVisibleBooksSelected)
+        #expect(Set(model.selectedBooks.map(\.id)) == [first.id, second.id, third.id])
+
+        model.toggleSelectAllVisibleBooks()
+        #expect(model.selectedBooks.isEmpty)
+        model.toggleBookSelection(first)
+        model.destination = .favorites
+        #expect(!model.isSelectingBooks)
+        #expect(model.selectedBooks.isEmpty)
+    }
+
     @MainActor
     @Test("Feature operation failures are surfaced as actionable alerts")
     func operationFailuresAreSurfaced() async {
@@ -153,10 +222,10 @@ struct BookManagementTests {
         ).apply(to: books)
     }
 
-    private func makeLibraryBook() -> LibraryBook {
+    private func makeLibraryBook(title: String = "Read Only") -> LibraryBook {
         LibraryBook(
             id: UUID(),
-            title: "Read Only",
+            title: title,
             subtitle: nil,
             authors: ["Test Author"],
             summary: "",

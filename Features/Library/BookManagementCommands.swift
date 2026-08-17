@@ -5,6 +5,7 @@ enum BookManagementAction {
     case exportEPUB
     case exportMarkdown
     case toggleFavorite
+    case clearReadingProgress
     case moveToTrash
     case restore
     case requestPermanentDeletion
@@ -43,6 +44,12 @@ struct BookManagementCommands: View {
                 systemImage: book.isFavorite ? "heart.slash" : "heart"
             ) {
                 onAction(.toggleFavorite)
+            }
+
+            if book.isCurrentlyReading {
+                Button("Clear Reading Progress", systemImage: "arrow.counterclockwise") {
+                    onAction(.clearReadingProgress)
+                }
             }
 
             Button("Move to Trash", systemImage: "trash", role: .destructive) {

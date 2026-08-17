@@ -12,6 +12,8 @@ final class LibraryViewModel {
     private(set) var isPerformingOperation = false
     private(set) var isPreparingEPUB = false
     private(set) var isPreparingMarkdown = false
+    private(set) var isSelectingBooks = false
+    private(set) var selectedBookIDs: Set<UUID> = []
     var alert: LibraryViewModelAlert?
     private var isObserving = false
     private var searchTask: Task<Void, Never>?
@@ -23,6 +25,7 @@ final class LibraryViewModel {
 
     var destination: LibraryDestination = .allBooks {
         didSet {
+            endBookSelection()
             selectedOrganizationID = nil
             scheduleSearch()
         }
@@ -30,17 +33,27 @@ final class LibraryViewModel {
 
     var presentation: LibraryPresentation = .grid
 
-    var sortOrder: LibrarySortOrder = .title
+    var sortOrder: LibrarySortOrder = .recentlyOpened
 
     var searchText = "" {
-        didSet { scheduleSearch() }
+        didSet {
+            if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                endBookSelection()
+            }
+            scheduleSearch()
+        }
     }
 
     var searchScope: LibrarySearchScope = .all {
         didSet { scheduleSearch() }
     }
 
-    var selectedOrganizationID: String?
+    var selectedOrganizationID: String? {
+        didSet {
+            guard selectedOrganizationID != oldValue else { return }
+            endBookSelection()
+        }
+    }
 
     private(set) var searchResults: [LibrarySearchResult] = []
     private(set) var isSearching = false
@@ -126,6 +139,18 @@ final class LibraryViewModel {
         !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    var selectedBooks: [LibraryBook] {
+        visibleBooks.filter { selectedBookIDs.contains($0.id) }
+    }
+
+    var selectedBooksWithProgress: [LibraryBook] {
+        selectedBooks.filter(\.isCurrentlyReading)
+    }
+
+    var areAllVisibleBooksSelected: Bool {
+        !visibleBooks.isEmpty && Set(visibleBooks.map(\.id)).isSubset(of: selectedBookIDs)
+    }
+
     func book(id: LibraryBook.ID) -> LibraryBook? {
         books.first { $0.id == id }
     }
@@ -152,6 +177,40 @@ final class LibraryViewModel {
 
     func clearSearch() {
         searchText = ""
+    }
+
+    func beginBookSelection() {
+        guard destination != .trash, !hasSearchQuery, !visibleBooks.isEmpty else { return }
+        isSelectingBooks = true
+        selectedBookIDs = []
+    }
+
+    func endBookSelection() {
+        isSelectingBooks = false
+        selectedBookIDs = []
+    }
+
+    func toggleBookSelection(_ book: LibraryBook) {
+        guard isSelectingBooks,
+              !book.isTrashed,
+              visibleBooks.contains(where: { $0.id == book.id }) else {
+            return
+        }
+        if selectedBookIDs.contains(book.id) {
+            selectedBookIDs.remove(book.id)
+        } else {
+            selectedBookIDs.insert(book.id)
+        }
+    }
+
+    func toggleSelectAllVisibleBooks() {
+        guard isSelectingBooks else { return }
+        let visibleBookIDs = Set(visibleBooks.map(\.id))
+        if !visibleBookIDs.isEmpty, visibleBookIDs.isSubset(of: selectedBookIDs) {
+            selectedBookIDs.subtract(visibleBookIDs)
+        } else {
+            selectedBookIDs.formUnion(visibleBookIDs)
+        }
     }
 
     func selectOrganization(_ group: LibraryOrganizationGroup?) {
@@ -226,6 +285,23 @@ final class LibraryViewModel {
         }
     }
 
+    @discardableResult
+    func moveSelectedBooksToTrash() async -> Bool {
+        await moveBooksToTrash(bookIDs: selectedBooks.map(\.id))
+    }
+
+    @discardableResult
+    func moveBooksToTrash(bookIDs: [UUID]) async -> Bool {
+        guard !bookIDs.isEmpty else { return false }
+        let succeeded = await performOperation(errorTitle: "Could Not Move Books to Trash") {
+            try await repository.moveBooksToTrash(ids: bookIDs, at: now())
+        }
+        if succeeded {
+            endBookSelection()
+        }
+        return succeeded
+    }
+
     func restore(_ book: LibraryBook) async {
         await performOperation(errorTitle: "Could Not Restore Book") {
             try await repository.restoreBook(id: book.id, at: now())
@@ -236,6 +312,36 @@ final class LibraryViewModel {
         await performOperation(errorTitle: "Could Not Delete Book") {
             try await repository.deleteBookPermanently(id: book.id)
         }
+    }
+
+    @discardableResult
+    func emptyTrash() async -> Bool {
+        await performOperation(errorTitle: "Could Not Empty Trash") {
+            _ = try await repository.emptyTrash()
+        }
+    }
+
+    func clearReadingProgress(for book: LibraryBook) async {
+        await performOperation(errorTitle: "Could Not Clear Reading Progress") {
+            try await repository.clearReadingProgress(bookIDs: [book.id])
+        }
+    }
+
+    @discardableResult
+    func clearSelectedReadingProgress() async -> Bool {
+        await clearReadingProgress(bookIDs: selectedBooksWithProgress.map(\.id))
+    }
+
+    @discardableResult
+    func clearReadingProgress(bookIDs: [UUID]) async -> Bool {
+        guard !bookIDs.isEmpty else { return false }
+        let succeeded = await performOperation(errorTitle: "Could Not Clear Reading Progress") {
+            try await repository.clearReadingProgress(bookIDs: bookIDs)
+        }
+        if succeeded {
+            endBookSelection()
+        }
+        return succeeded
     }
 
     func prepareEPUBExport(for book: LibraryBook) async -> EPUBExportPresentation? {
@@ -255,6 +361,31 @@ final class LibraryViewModel {
             )
             return nil
         }
+    }
+
+    func prepareEPUBExports(for books: [LibraryBook]) async -> [EPUBExportPresentation]? {
+        guard !isPreparingEPUB, !books.isEmpty else { return nil }
+        isPreparingEPUB = true
+        defer { isPreparingEPUB = false }
+
+        var presentations: [EPUBExportPresentation] = []
+        presentations.reserveCapacity(books.count)
+        for book in books {
+            do {
+                try Task.checkCancellation()
+                let file = try await epubExporter.export(book: book)
+                presentations.append(EPUBExportPresentation(file: file))
+            } catch is CancellationError {
+                return nil
+            } catch {
+                alert = LibraryViewModelAlert(
+                    title: "Could Not Export \(book.title) as EPUB",
+                    message: "No files were exported. \(error.localizedDescription)"
+                )
+                return nil
+            }
+        }
+        return presentations
     }
 
     func reportEPUBFileWriteFailure(_ error: Error) {
@@ -283,6 +414,31 @@ final class LibraryViewModel {
         }
     }
 
+    func prepareMarkdownExports(for books: [LibraryBook]) async -> [MarkdownExportPresentation]? {
+        guard !isPreparingMarkdown, !books.isEmpty else { return nil }
+        isPreparingMarkdown = true
+        defer { isPreparingMarkdown = false }
+
+        var presentations: [MarkdownExportPresentation] = []
+        presentations.reserveCapacity(books.count)
+        for book in books {
+            do {
+                try Task.checkCancellation()
+                let file = try await markdownExporter.exportMarkdown(book: book)
+                presentations.append(MarkdownExportPresentation(file: file))
+            } catch is CancellationError {
+                return nil
+            } catch {
+                alert = LibraryViewModelAlert(
+                    title: "Could Not Export \(book.title) as Markdown",
+                    message: "No files were exported. \(error.localizedDescription)"
+                )
+                return nil
+            }
+        }
+        return presentations
+    }
+
     func reportMarkdownFileWriteFailure(_ error: Error) {
         alert = LibraryViewModelAlert(
             title: "Could Not Save Markdown",
@@ -290,10 +446,9 @@ final class LibraryViewModel {
         )
     }
 
-    func markOpened(_ book: LibraryBook) async {
-        guard !book.isTrashed else { return }
+    func markOpened(bookID: UUID) async {
         do {
-            try await repository.markBookOpened(id: book.id, at: now())
+            try await repository.markBookOpened(id: bookID, at: now())
         } catch is CancellationError {
             return
         } catch {
@@ -314,6 +469,7 @@ final class LibraryViewModel {
         do {
             for try await observedBooks in repository.observeLibraryBooks() {
                 books = observedBooks
+                selectedBookIDs.formIntersection(Set(visibleBooks.map(\.id)))
                 isLoading = false
                 errorMessage = nil
                 if hasSearchQuery {

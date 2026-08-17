@@ -110,6 +110,63 @@ struct ReadingProgressBookmarkTests {
         #expect(orderedIDs == [newerBookID, olderBookID])
     }
 
+    @Test("Batch progress clearing is atomic and preserves bookmarks and opened history")
+    func clearReadingProgressBatch() async throws {
+        let repository = try makeRepository()
+        let (firstBookID, firstChapters) = try await createBook(in: repository)
+        let (secondBookID, secondChapters) = try await createBook(in: repository)
+        let firstReadAt = referenceDate.addingTimeInterval(10)
+        let secondReadAt = referenceDate.addingTimeInterval(20)
+
+        try await repository.saveReadingProgress(
+            ReadingProgress(
+                bookID: firstBookID,
+                chapterID: firstChapters[0].id,
+                overallProgress: 0.25,
+                lastReadAt: firstReadAt
+            )
+        )
+        try await repository.saveReadingProgress(
+            ReadingProgress(
+                bookID: secondBookID,
+                chapterID: secondChapters[1].id,
+                overallProgress: 0.75,
+                lastReadAt: secondReadAt
+            )
+        )
+        let bookmark = Bookmark(
+            bookID: firstBookID,
+            chapterID: firstChapters[0].id,
+            stableBlockID: "saved-block",
+            textQuote: "Saved paragraph",
+            fractionInChapter: 0.25,
+            createdAt: referenceDate,
+            updatedAt: referenceDate
+        )
+        try await repository.createBookmark(bookmark)
+
+        await #expect(throws: LibraryRepositoryError.bookNotFound) {
+            try await repository.clearReadingProgress(bookIDs: [firstBookID, UUID()])
+        }
+        #expect(try await repository.readingProgress(forBookID: firstBookID) != nil)
+
+        var observedBooks = repository.observeLibraryBooks().makeAsyncIterator()
+        let initialObservedBooks = try await observedBooks.next()
+        #expect(initialObservedBooks?.filter(\.isCurrentlyReading).count == 2)
+        try await repository.clearReadingProgress(
+            bookIDs: [secondBookID, firstBookID, firstBookID]
+        )
+        let clearedObservedBooks = try await observedBooks.next()
+        #expect(clearedObservedBooks?.allSatisfy { !$0.isCurrentlyReading } == true)
+        #expect(try await repository.readingProgress(forBookID: firstBookID) == nil)
+        #expect(try await repository.readingProgress(forBookID: secondBookID) == nil)
+        let books = try await repository.fetchLibraryBooks()
+        #expect(books.allSatisfy { !$0.isCurrentlyReading && $0.readingProgress == nil })
+        #expect(books.first(where: { $0.id == firstBookID })?.lastOpenedAt == firstReadAt)
+        #expect(books.first(where: { $0.id == secondBookID })?.lastOpenedAt == secondReadAt)
+        #expect(try await storedBookmark(bookmark.id, repository: repository) != nil)
+    }
+
     @Test("Append preserves anchors and replacement retains graceful book-level fallback")
     func anchorsAcrossWholeBookUpdates() async throws {
         let repository = try makeRepository()

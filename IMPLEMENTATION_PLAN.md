@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 16 — polish and release readiness.
-- Implementation status: Step 16 is blocked on external Developer ID signing and notarization credentials.
+- Current milestone: Step 17 — batch library operations and reading-progress reset, accepted.
+- Implementation status: Step 17 was manually accepted on 2026-08-17. Step 16 remains blocked only on external Developer ID signing and notarization credentials; that external release-signing task does not affect the accepted functional milestone.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -675,6 +675,43 @@ Turn the functionally complete application into a dependable signed macOS releas
 - Test light/dark appearance, multiple windows, full screen, restart, and recovery messaging.
 - Install and run the signed release build on a second compatible Mac if available.
 
+## Step 17 — Add batch library operations and reading-progress reset
+
+### Goal
+
+Make common maintenance and export actions efficient for a real library, then identify the result as version 1.1 build 2.
+
+### Deliverables
+
+- Add an explicit selection mode to active-library grid and list presentations, with multi-selection, selected-count feedback, cancel/done behavior, and Select All for the currently visible destination and author/tag filter.
+- Batch-export selected active books as EPUB or complete Markdown through the native multi-document exporter, producing one correctly named file per book and publishing nothing when preflight for any selected book fails.
+- Move selected active books to Trash in one validated database transaction.
+- Add per-book and batch Clear Reading Progress actions. Clearing progress removes only the persisted reading-progress row so the book leaves Currently Reading; it preserves bookmarks and Recently Opened history.
+- Add a confirmed Empty Trash operation that permanently deletes every currently trashed book in one validated database transaction, then cleans all owned asset storage with actionable partial-cleanup reporting.
+- Keep selection scoped to the current window and clear it when its destination, search mode, or visible records make the selection stale.
+- Make Recently Opened the default sort for new windows while preserving an existing per-window sort choice, and immediately open a book after a successful Add or Edit save so its recently-opened timestamp and listing position update together.
+- Update About and bundle identity from version 1.0 build 1 to version 1.1 build 2.
+- Add no schema migration and no dependency.
+
+### Automated checks
+
+- Repository tests cover atomic multi-book Trash moves, batch progress clearing, validation rollback, Empty Trash, cascade behavior, and asset cleanup.
+- Feature tests cover deterministic visible-book selection, Select All, and selection reset after successful actions or navigation changes.
+- UI tests cover grid/list selection controls, Select All, batch Trash, Empty Trash confirmation, clear-progress removal from Currently Reading, the Recently Opened default, and automatic reader opening after Add/Edit.
+- Debug and Release builds plus the complete unit/integration and UI suite pass.
+
+### Manual checkpoint
+
+- In All Books grid view, enter selection mode, select several books individually, cancel once, then repeat and use Select All; confirm the selected count and checkmarks are accurate.
+- Batch-export two or more selected books as EPUB and Markdown. Confirm the native exporter writes one correctly named file per book and that representative files open correctly.
+- Move several selected books to Trash; confirm the active collection updates together and all selected books appear in Trash.
+- In Currently Reading, clear progress for one book from its More menu, then clear progress for multiple selected books; confirm each disappears while its bookmarks and Recently Opened entry remain.
+- Switch to list view and repeat a multi-selection action; verify selection remains accessible and does not open a reader accidentally.
+- In Trash, choose Empty Trash, cancel once, then confirm; verify every trashed book and its owned assets are permanently removed.
+- In a new window, confirm Recently Opened is the default sort. Add a book and then edit it; after each successful save, confirm its reader opens automatically and the book is first in the Recently Opened listing after returning to the library.
+- Open About iEvelyn and confirm it shows Version 1.1 (2).
+- Quit and relaunch; confirm the resulting library state persists.
+
 ## Progress table
 
 Use only these statuses: `Not started`, `In progress`, `Awaiting manual test`, `Accepted`, `Blocked`.
@@ -702,6 +739,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 14 | Separate legacy data exporter | Accepted | Separate .NET 10/Npgsql 10.0.3 console exporter writes documented deterministic `.ievelynlegacy` ZIP bundles from a verified repeatable-read `READ ONLY` transaction configured only through `EVELYN_MIGRATION_CONNECTION_STRING`. It supports dry-run, selected book IDs, explicit atomic overwrite, canonical UTF-8 chapter Markdown, recognized referenced assets, SHA-256 checksums, source/export counts, warnings, skipped items, and stable legacy-ID mappings. Users/authentication, aggregate Markdown, generated HTML/EPUB, thumbnails, legacy 3:4 covers, and user-bound paragraph-index bookmarks/progress are explicitly excluded and reported. Release build, formatter verification, all 14 fixture tests, current NuGet vulnerability scan, and a disposable PostgreSQL dry-run/repeated-export/source-digest check pass; the successful live export checkpoint was accepted on 2026-08-16. |
 | 15 | Native legacy-bundle importer | Accepted | Validated no-write review, explicit duplicate handling, new UUID mapping, asset-route rewriting, staged database/assets, full search rebuild, controlled reader rendering, retained reconciliation reports, atomic exchange, and rollback are implemented without a schema migration or dependency. Debug/Release builds and all 110 tests (99 unit/integration and 11 UI) pass; the successful live import checkpoint was accepted on 2026-08-16. |
 | 16 | Polish and release readiness | Blocked | Direct-download release work, version 1.0 build 1 identity, Chengyu Sun copyright, icon, polish, audits, tests, and unsigned archive validation are complete. The reader now starts with its sidebar collapsed and panel focused, uses B and Left/Right for bookmark and chapter commands, and uses C to toggle the sidebar with matching focus transfer; this correction was manually accepted on 2026-08-17. A signed, notarized archive still requires a Developer ID Application identity and notarytool Keychain profile on the release Mac. |
+| 17 | Batch library operations and reading-progress reset | Accepted | Selection-mode batch export, Trash, clear-progress, and Empty Trash operations are implemented with version 1.1 build 2 identity. Recently Opened is the new-window default, and successful Add/Edit saves dismiss the editor before opening and marking the saved book as recently opened. Debug/Release builds and all 123 tests (109 unit/integration and 14 UI) pass; the manual checkpoint was accepted on 2026-08-17. |
 
 ## Plan maintenance
 

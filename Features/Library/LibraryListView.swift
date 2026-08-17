@@ -4,6 +4,9 @@ struct LibraryListView: View {
     let books: [LibraryBook]
     let onOpenBook: (LibraryBook) -> Void
     let onBookAction: (LibraryBook, BookManagementAction) -> Void
+    let isSelecting: Bool
+    let selectedBookIDs: Set<UUID>
+    let onToggleSelection: (LibraryBook) -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -15,23 +18,35 @@ struct LibraryListView: View {
                     ForEach(books) { book in
                         HStack(spacing: 8) {
                             Button {
-                                onOpenBook(book)
+                                activate(book)
                             } label: {
-                                listRow(for: book)
-                                    .contentShape(Rectangle())
+                                HStack(spacing: 10) {
+                                    if isSelecting {
+                                        selectionIndicator(for: book)
+                                    }
+                                    listRow(for: book)
+                                }
+                                .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("\(book.title), by \(book.authorLine)")
-                            .accessibilityHint("Open book")
+                            .accessibilityHint(selectionHint(for: book))
+                            .accessibilityValue(
+                                isSelecting && selectedBookIDs.contains(book.id) ? "Selected" : ""
+                            )
                             .accessibilityIdentifier("book-\(book.id)")
                             .contextMenu {
-                                BookManagementCommands(book: book) { action in
-                                    onBookAction(book, action)
+                                if !isSelecting {
+                                    BookManagementCommands(book: book) { action in
+                                        onBookAction(book, action)
+                                    }
                                 }
                             }
 
-                            BookManagementMenu(book: book) { action in
-                                onBookAction(book, action)
+                            if !isSelecting {
+                                BookManagementMenu(book: book) { action in
+                                    onBookAction(book, action)
+                                }
                             }
                         }
                         .padding(.horizontal, 14)
@@ -49,6 +64,10 @@ struct LibraryListView: View {
 
     private var listHeader: some View {
         HStack(spacing: 8) {
+            if isSelecting {
+                Color.clear
+                    .frame(width: 20, height: 1)
+            }
             Text("Title")
                 .frame(maxWidth: .infinity, alignment: .leading)
             Text("Author")
@@ -103,5 +122,32 @@ struct LibraryListView: View {
             .frame(width: 72, alignment: .leading)
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+    }
+
+    private func activate(_ book: LibraryBook) {
+        if isSelecting {
+            onToggleSelection(book)
+        } else {
+            onOpenBook(book)
+        }
+    }
+
+    private func selectionIndicator(for book: LibraryBook) -> some View {
+        Image(
+            systemName: selectedBookIDs.contains(book.id)
+                ? "checkmark.circle.fill"
+                : "circle"
+        )
+        .font(.title3)
+        .foregroundStyle(
+            selectedBookIDs.contains(book.id) ? Color.accentColor : Color.secondary
+        )
+        .frame(width: 20)
+        .accessibilityHidden(true)
+    }
+
+    private func selectionHint(for book: LibraryBook) -> String {
+        guard isSelecting else { return "Open book" }
+        return selectedBookIDs.contains(book.id) ? "Deselect book" : "Select book"
     }
 }

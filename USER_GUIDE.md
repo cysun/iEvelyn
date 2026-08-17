@@ -1,4 +1,4 @@
-# iEvelyn 1.0 user guide
+# iEvelyn 1.1 user guide
 
 iEvelyn is a private, local-first ebook library and reader for macOS 26 or
 later. It has no account, cloud sync, analytics, advertising, or telemetry.
@@ -23,16 +23,26 @@ The editor starts with title, first author, content file, and cover. **Show More
 Options** reveals subtitle, description, additional authors, and tags. JPEG,
 PNG, and HEIC covers are supported.
 
+After a book is added successfully, iEvelyn opens it immediately in the reader.
+Saving changes through **Edit Book…** also reopens that book so the saved result
+is ready to read and becomes the most recently opened library item.
+
 Use a book's **More** menu to edit metadata, replace or append complete content,
 replace or remove its cover, add or remove it from Favorites, move it to Trash,
-or export it. Trash is recoverable until **Delete Permanently** is confirmed.
+clear its saved reading progress, or export it. Choose **Select** in an active
+library collection to select multiple books or **Select All**, then export EPUB
+or Markdown files, clear reading progress, or move the selected books to Trash.
+Select All applies to the currently visible destination and author/tag filter.
+Trash is recoverable until **Delete Permanently** is confirmed; **Empty Trash**
+permanently removes every book currently in Trash after confirmation.
 
 ## Browse, search, and read
 
 The sidebar provides All Books, Currently Reading, Recently Added, Favorites,
 Authors, Tags, and Trash. Use **Command-1** and **Command-2** for grid and list
 views, and **Command-Shift-L** for All Books. Presentation, sorting, destination,
-and window geometry are restored per window.
+and window geometry are restored per window. Recently Opened is the default sort
+for a new window; choosing another sort keeps that choice for that window.
 
 Library search covers titles, subtitles, authors, tags, chapter titles, and
 chapter content. Search results open the matching reader location. Trash is
@@ -67,6 +77,9 @@ the trusted book document.
   conforming readers.
 - **Export Markdown…** reconstructs the complete-book Markdown source. It does
   not include cover or in-book image bytes.
+- Selection mode can export multiple EPUB or Markdown documents at once. The
+  native exporter writes one correctly named file per selected book and does
+  not publish a partial batch when any book fails preflight.
 - **Back Up Library…** creates a versioned .ievelynlibrary snapshot containing
   the database and every authoritative asset, with record counts and SHA-256
   checksums.
@@ -108,8 +121,8 @@ folder.
   memory. Very large libraries can temporarily require memory comparable to
   the database plus compressed and uncompressed assets.
 - The reader uses continuous vertical scrolling; a paginated column mode is not
-  included in version 1.0.
-- iEvelyn 1.0 supports macOS 26 or later and has no built-in updater.
+  included in version 1.1.
+- iEvelyn 1.1 supports macOS 26 or later and has no built-in updater.
 
 For the exact library bundle contract, see LIBRARY_BUNDLE_FORMAT.md. For the
 legacy import contract, see LEGACY_IMPORT.md.

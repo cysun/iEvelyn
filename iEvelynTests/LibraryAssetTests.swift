@@ -328,6 +328,44 @@ struct LibraryAssetTests {
         #expect(audit.orphanedRelativePaths.isEmpty)
     }
 
+    @Test("Empty Trash removes asset storage for every trashed book")
+    func emptyTrashCleansAllOwnedStorage() async throws {
+        let environment = try makeEnvironment(named: "empty-trash")
+        defer { removeTestDirectory(environment.rootURL) }
+        var storedURLs: [URL] = []
+
+        for index in 0..<2 {
+            let bookID = try await makeBook(in: environment.repository)
+            let sourceURL = environment.rootURL.appending(path: "cover-\(index).png")
+            try writeImage(to: sourceURL, type: .png)
+            try await environment.repository.importCover(
+                bookID: bookID,
+                from: sourceURL,
+                at: referenceDate
+            )
+            let cover = try #require(
+                try await environment.repository.fetchLibraryBooks()
+                    .first(where: { $0.id == bookID })?.coverAsset
+            )
+            storedURLs.append(
+                try await environment.repository.resolveBookAssetURL(
+                    environment.repository.bookAssetURL(for: cover)
+                )
+            )
+            try await environment.repository.moveBookToTrash(
+                id: bookID,
+                at: referenceDate.addingTimeInterval(60)
+            )
+        }
+
+        #expect(try await environment.repository.emptyTrash() == 2)
+        #expect(storedURLs.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
+        #expect(try await environment.repository.fetchAssets().isEmpty)
+        #expect(try await environment.repository.fetchLibraryBooks().isEmpty)
+        let audit = try await environment.repository.auditAssetStorage()
+        #expect(audit.orphanedRelativePaths.isEmpty)
+    }
+
     @Test("Book asset URLs resolve only known database-backed references")
     func safeBookAssetResolution() async throws {
         let environment = try makeEnvironment(named: "safe-url")
