@@ -200,6 +200,30 @@ struct LibraryInterchangeTests {
         try? FileManager.default.removeItem(at: fixture.containerURL)
     }
 
+    @Test("A valid backup can replace a library whose database no longer opens")
+    func recoveryRestoreDoesNotRequireAnOpenRepository() async throws {
+        let fixture = try await makeFixture()
+        let backup = try await makeService(repository: fixture.repository).createBackup()
+        try await fixture.database.close()
+        let databaseURL = fixture.libraryRootURL.appending(
+            path: LibraryDatabase.productionDatabaseName,
+            directoryHint: .notDirectory
+        )
+        try Data("not a SQLite database".utf8).write(to: databaseURL, options: .atomic)
+
+        let recoveryService = LibraryInterchangeService(
+            recoveryLibraryRootURL: fixture.libraryRootURL
+        )
+        let prepared = try await recoveryService.prepareRestore(from: backup.data)
+        try await recoveryService.atomicallySwap(prepared, with: fixture.libraryRootURL)
+
+        let recoveredDatabase = try LibraryDatabase.makeTemporary(in: fixture.libraryRootURL)
+        #expect(try await snapshot(recoveredDatabase).books.count == 1)
+        try await recoveredDatabase.close()
+        await recoveryService.discardPreparedRestore(prepared)
+        try? FileManager.default.removeItem(at: fixture.containerURL)
+    }
+
     @Test("Markdown export reconstructs the complete Step 9A whole-book format")
     func markdownInterchange() async throws {
         let fixture = try await makeFixture()

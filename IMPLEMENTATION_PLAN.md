@@ -1,6 +1,6 @@
 # iEvelyn Sequential Implementation Plan
 
-Last updated: 2026-08-16
+Last updated: 2026-08-17
 
 ## Purpose
 
@@ -11,7 +11,7 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 ## Current status
 
 - Current milestone: Step 16 — polish and release readiness.
-- Implementation status: Step 16 is authorized and not started.
+- Implementation status: Step 16 is blocked on external Developer ID signing and notarization credentials.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -701,7 +701,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 13 | Backup, restore, and interchange | Accepted | Versioned `.ievelynlibrary` bundles contain an online SQLite snapshot, all authoritative assets, record counts, producer metadata, and SHA-256 checksums. The exported ZIP-conforming bundle type keeps new filenames to one extension and lets Restore select both corrected and previously doubled-extension backups. Restore rejects unsafe, incomplete, corrupt, or unsupported bundles before staging, validates a temporary sibling library, and uses an atomic directory exchange with rollback. The Library menu adds backup, restore confirmation, and a human-readable Check Library Integrity report; per-book actions add complete Step 9A Markdown export. No schema migration or dependency was added. Debug/Release builds and all 104 tests (93 unit/integration and 11 UI) pass; the manual checkpoint was accepted on 2026-08-16. |
 | 14 | Separate legacy data exporter | Accepted | Separate .NET 10/Npgsql 10.0.3 console exporter writes documented deterministic `.ievelynlegacy` ZIP bundles from a verified repeatable-read `READ ONLY` transaction configured only through `EVELYN_MIGRATION_CONNECTION_STRING`. It supports dry-run, selected book IDs, explicit atomic overwrite, canonical UTF-8 chapter Markdown, recognized referenced assets, SHA-256 checksums, source/export counts, warnings, skipped items, and stable legacy-ID mappings. Users/authentication, aggregate Markdown, generated HTML/EPUB, thumbnails, legacy 3:4 covers, and user-bound paragraph-index bookmarks/progress are explicitly excluded and reported. Release build, formatter verification, all 14 fixture tests, current NuGet vulnerability scan, and a disposable PostgreSQL dry-run/repeated-export/source-digest check pass; the successful live export checkpoint was accepted on 2026-08-16. |
 | 15 | Native legacy-bundle importer | Accepted | Validated no-write review, explicit duplicate handling, new UUID mapping, asset-route rewriting, staged database/assets, full search rebuild, controlled reader rendering, retained reconciliation reports, atomic exchange, and rollback are implemented without a schema migration or dependency. Debug/Release builds and all 110 tests (99 unit/integration and 11 UI) pass; the successful live import checkpoint was accepted on 2026-08-16. |
-| 16 | Polish and release readiness | Not started | |
+| 16 | Polish and release readiness | Blocked | Direct-download release work, version 1.0 build 1 identity, Chengyu Sun copyright, icon, polish, audits, tests, and unsigned archive validation are complete. The reader now starts with its sidebar collapsed and panel focused, uses B and Left/Right for bookmark and chapter commands, and uses C to toggle the sidebar with matching focus transfer; this correction was manually accepted on 2026-08-17. A signed, notarized archive still requires a Developer ID Application identity and notarytool Keychain profile on the release Mac. |
 
 ## Plan maintenance
 

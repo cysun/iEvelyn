@@ -7,6 +7,11 @@ struct LibraryRootView: View {
     @State private var editorConfiguration: BookEditorConfiguration?
     @State private var exportPresentation: BookExportPresentation?
     @State private var isExportingBook = false
+    @State private var didRestoreSceneState = false
+    @FocusState private var isSearchFocused: Bool
+    @SceneStorage("library.destination") private var storedDestination = LibraryDestination.allBooks.rawValue
+    @SceneStorage("library.presentation") private var storedPresentation = LibraryPresentation.grid.rawValue
+    @SceneStorage("library.sortOrder") private var storedSortOrder = LibrarySortOrder.title.rawValue
 
     init(repository: any LibraryRepository) {
         _model = State(initialValue: LibraryViewModel(repository: repository))
@@ -82,11 +87,23 @@ struct LibraryRootView: View {
             placement: .toolbar,
             prompt: "Search Library"
         )
+        .searchFocused($isSearchFocused)
         .focusedSceneValue(\.libraryPresentation, $model.presentation)
         .focusedSceneValue(\.libraryDestination, $model.destination)
+        .focusedSceneValue(\.librarySearchFocus, $isSearchFocused)
         .accessibilityIdentifier("library-root")
         .task {
+            restoreSceneStateIfNeeded()
             await model.observeLibrary()
+        }
+        .onChange(of: model.destination) { _, destination in
+            storedDestination = destination.rawValue
+        }
+        .onChange(of: model.presentation) { _, presentation in
+            storedPresentation = presentation.rawValue
+        }
+        .onChange(of: model.sortOrder) { _, sortOrder in
+            storedSortOrder = sortOrder.rawValue
         }
         .sheet(item: $editorConfiguration) { configuration in
             BookEditorView(
@@ -130,6 +147,13 @@ struct LibraryRootView: View {
         }
     }
 
+    private func restoreSceneStateIfNeeded() {
+        guard !didRestoreSceneState else { return }
+        didRestoreSceneState = true
+        model.destination = LibraryDestination(rawValue: storedDestination) ?? .allBooks
+        model.presentation = LibraryPresentation(rawValue: storedPresentation) ?? .grid
+        model.sortOrder = LibrarySortOrder(rawValue: storedSortOrder) ?? .title
+    }
 }
 
 private enum BookExportPresentation {

@@ -1,6 +1,6 @@
 # iEvelyn Project Context
 
-Last updated: 2026-08-16
+Last updated: 2026-08-17
 
 ## Purpose of this document
 
@@ -243,7 +243,7 @@ Migration rules:
 
 ## Current project state
 
-As of 2026-08-16:
+As of 2026-08-17:
 
 - `/Users/cysun/git/iEvelyn` is a Git repository on `main`, tracking `origin/main`; Step 1 was accepted on 2026-08-14.
 - The native SwiftUI project, app target, Swift Testing target, and XCTest UI-test target exist, and the Step 1 manual checkpoint passed.
@@ -283,12 +283,15 @@ As of 2026-08-16:
 - The app uses the product name iEvelyn, bundle identifier `org.cysun.iEvelyn`, macOS 26 deployment target, Swift 6 language mode with complete strict-concurrency checking, and App Sandbox with user-selected read/write file access plus outgoing connections required by the WebKit content process.
 - The legacy source application remains in a separate `Evelyn.NET` folder and should be consulted only when migration work reaches Steps 14–15 or when a specific legacy-data question must be answered.
 
+- Step 16 targets a direct-download version 1.0 build 1 release credited to Chengyu Sun. The app keeps App Sandbox, adds Hardened Runtime, and will use a Developer ID Application signature, secure timestamp, Apple notarization, stapling, Gatekeeper validation, and a checksummed ZIP. Signing and notarization credentials remain outside source control. The original app icon is a centered cream open book and amber bookmark on deep indigo; About uses a narrow AppKit bridge to display the running app icon because SwiftUI has no equivalent API.
+- New reader windows open with the sidebar collapsed and the reader panel focused. Bare `B`, Left Arrow, and Right Arrow add a bookmark or move between chapters; bare `C` toggles the sidebar. Expanding the sidebar focuses its current list, while collapsing it returns focus to the WebKit reader. An isolated AppKit bridge supplies window-scoped bare-key monitoring and first-responder requests because SwiftUI's macOS 26 WebView integration does not expose those capabilities reliably; text-entry responders are excluded. The reader keyboard and focus correction was manually accepted on 2026-08-17.
+
 ## Open decisions
 
 Resolve these at the named milestone or when the user chooses to decide sooner:
 
 - Whether a future release should add an accessible paginated/column alternative to the continuous reader.
-- App icon, signing identity, distribution path, and notarization details: Step 16.
+- A future release-hosting location and update mechanism remain undecided; version 1.0 is a manually distributed direct-download ZIP.
 
 ## Decision discipline
 

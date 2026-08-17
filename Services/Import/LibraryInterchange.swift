@@ -297,7 +297,8 @@ actor MarkdownInterchangeService: MarkdownExporting {
 }
 
 actor LibraryInterchangeService {
-    private let repository: GRDBLibraryRepository
+    private let repository: GRDBLibraryRepository?
+    private let activeLibraryRootURL: URL?
     private let fileManager: FileManager
     private let now: @Sendable () -> Date
     private let appVersion: String
@@ -311,6 +312,7 @@ actor LibraryInterchangeService {
         appBuild: String? = nil
     ) {
         self.repository = repository
+        activeLibraryRootURL = repository.database.location.databaseURL?.deletingLastPathComponent()
         self.fileManager = fileManager
         self.now = now
         self.appVersion = appVersion
@@ -321,7 +323,25 @@ actor LibraryInterchangeService {
             ?? "unknown"
     }
 
+    init(
+        recoveryLibraryRootURL: URL,
+        fileManager: FileManager = .default
+    ) {
+        repository = nil
+        activeLibraryRootURL = recoveryLibraryRootURL.standardizedFileURL
+        self.fileManager = fileManager
+        now = { .now }
+        appVersion = Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "unknown"
+        appBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+            ?? "unknown"
+    }
+
     func createBackup() async throws -> LibraryBackupFile {
+        guard let repository else {
+            throw LibraryInterchangeError.unavailableForCurrentLibrary
+        }
         let temporaryRoot = fileManager.temporaryDirectory
             .appending(path: "iEvelyn-Backup-\(UUID().databaseString)", directoryHint: .isDirectory)
         try fileManager.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
@@ -352,7 +372,7 @@ actor LibraryInterchangeService {
         snapshotIsClosed = true
 
         let databaseData = try Data(contentsOf: snapshotURL, options: .mappedIfSafe)
-        let assetEntries = try await backupAssetEntries(for: assets)
+        let assetEntries = try await backupAssetEntries(for: assets, repository: repository)
         let manifest = LibraryBundleManifest(
             formatIdentifier: LibraryBundleManifest.formatIdentifier,
             formatVersion: LibraryBundleManifest.currentFormatVersion,
@@ -383,6 +403,9 @@ actor LibraryInterchangeService {
     }
 
     func checkAndRepairIntegrity() async throws -> LibraryIntegrityReport {
+        guard let repository else {
+            throw LibraryInterchangeError.unavailableForCurrentLibrary
+        }
         let initialInspection = try await repository.database.read(LibraryDatabaseInspection.inspect)
         let assets = try await repository.fetchAssets()
         var missingAssetIDs: [UUID] = []
@@ -439,7 +462,7 @@ actor LibraryInterchangeService {
     }
 
     func prepareRestore(from archiveData: Data) async throws -> PreparedLibraryRestore {
-        guard let activeRoot = repository.database.location.databaseURL?.deletingLastPathComponent() else {
+        guard let activeRoot = activeLibraryRootURL else {
             throw LibraryInterchangeError.unavailableForCurrentLibrary
         }
         let contents = try LibraryBundleArchive.readAndValidate(archiveData)
@@ -530,7 +553,10 @@ actor LibraryInterchangeService {
         try? fileManager.removeItem(at: preparedRestore.stagedLibraryRootURL)
     }
 
-    private func backupAssetEntries(for assets: [Asset]) async throws -> [BackupAssetEntry] {
+    private func backupAssetEntries(
+        for assets: [Asset],
+        repository: GRDBLibraryRepository
+    ) async throws -> [BackupAssetEntry] {
         var entries: [BackupAssetEntry] = []
         for asset in assets {
             try Task.checkCancellation()

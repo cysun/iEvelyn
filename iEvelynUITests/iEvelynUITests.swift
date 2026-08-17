@@ -31,6 +31,36 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
+    func testAboutIdentityAndAddBookKeyboardShortcut() throws {
+        let app = launchApplication(seedSampleLibrary: false)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library-empty-state"].waitForExistence(timeout: 10)
+        )
+
+        let applicationMenu = app.menuBars.menuBarItems["iEvelyn"]
+        applicationMenu.click()
+        let aboutCommand = applicationMenu.menus.menuItems["About iEvelyn"]
+        XCTAssertTrue(aboutCommand.waitForExistence(timeout: 5))
+        aboutCommand.click()
+        XCTAssertTrue(app.windows["About iEvelyn"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Version 1.0 (1)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["Copyright © 2026 Chengyu Sun. All rights reserved."].exists
+        )
+        app.typeKey("w", modifierFlags: .command)
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["library-empty-state"].waitForExistence(timeout: 5)
+        )
+        app.typeKey("n", modifierFlags: [.command, .shift])
+        XCTAssertTrue(
+            app.descendants(matching: .any)["book-editor-save"].waitForExistence(timeout: 5),
+            "Command-Shift-N should open Add Book without requiring pointer input."
+        )
+        app.buttons["Cancel"].click()
+    }
+
+    @MainActor
     func testBookActivationOpensAndClosesDedicatedReaderWindow() throws {
         let app = launchApplication(seedSampleLibrary: true)
 
@@ -120,7 +150,7 @@ final class iEvelynUITests: XCTestCase {
 
         let searchField = app.searchFields["Search Library"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
-        searchField.click()
+        app.typeKey("f", modifierFlags: .command)
         searchField.typeText("Kindred")
 
         XCTAssertTrue(
@@ -435,6 +465,9 @@ final class iEvelynUITests: XCTestCase {
 
         let book = app.buttons["Chapter Workflow, by Test Author"]
         book.click()
+        XCTAssertTrue(app.staticTexts["Opening body."].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["Show Sidebar"].waitForExistence(timeout: 5))
+        app.typeKey("c", modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 10))
         let tableOfContents = app.descendants(matching: .any)["reader-table-of-contents"]
         let opening = tableOfContents.descendants(matching: .staticText)["Opening"]
@@ -460,6 +493,8 @@ final class iEvelynUITests: XCTestCase {
             app.staticTexts["Ending body."].waitForExistence(timeout: 10),
             "Reopening the reader should restore the last chapter."
         )
+        XCTAssertTrue(app.buttons["Show Sidebar"].waitForExistence(timeout: 5))
+        app.typeKey("c", modifierFlags: [])
         let reopenedTableOfContents = app.descendants(matching: .any)["reader-table-of-contents"]
         XCTAssertTrue(
             reopenedTableOfContents.descendants(matching: .staticText)["Opening"]
@@ -501,11 +536,12 @@ final class iEvelynUITests: XCTestCase {
 
         let addBookmark = app.descendants(matching: .any)["reader-add-bookmark"]
         XCTAssertTrue(addBookmark.waitForExistence(timeout: 5))
-        addBookmark.click()
+        app.typeKey("b", modifierFlags: [])
         XCTAssertFalse(app.alerts["Add Bookmark"].exists)
         XCTAssertFalse(app.textFields["Label (Optional)"].exists)
         XCTAssertFalse(app.textFields["Note"].exists)
 
+        app.typeKey("c", modifierFlags: [])
         XCTAssertTrue(app.descendants(matching: .any)["reader-bookmarks"].waitForExistence(timeout: 5))
         let bookmarkLocation = app.buttons.matching(
             NSPredicate(format: "identifier BEGINSWITH %@", "reader-bookmark-location-")
@@ -560,7 +596,11 @@ final class iEvelynUITests: XCTestCase {
             app.staticTexts["Opening chapter body"].waitForExistence(timeout: 10),
             "Opening a book should render its first chapter in the reader window."
         )
-        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 5))
+        let showSidebar = app.buttons["Show Sidebar"]
+        XCTAssertTrue(
+            showSidebar.waitForExistence(timeout: 5),
+            "A new reader window should start with its sidebar collapsed."
+        )
         XCTAssertFalse(
             app.descendants(matching: .any)["reader-toggle-toc"].exists,
             "The reader should rely on NavigationSplitView's single native sidebar control."
@@ -569,14 +609,34 @@ final class iEvelynUITests: XCTestCase {
         let nextChapter = app.descendants(matching: .any)["reader-next-chapter"]
         XCTAssertTrue(nextChapter.waitForExistence(timeout: 5))
         XCTAssertTrue(nextChapter.isEnabled)
-        nextChapter.click()
+        app.typeKey(.rightArrow, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Ending chapter body"].waitForExistence(timeout: 10))
         XCTAssertFalse(nextChapter.isEnabled)
 
         let previousChapter = app.descendants(matching: .any)["reader-previous-chapter"]
         XCTAssertTrue(previousChapter.isEnabled)
-        previousChapter.click()
+        app.typeKey(.leftArrow, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Opening chapter body"].waitForExistence(timeout: 10))
+
+        app.typeKey("c", modifierFlags: [])
+        XCTAssertTrue(app.buttons["Hide Sidebar"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 5))
+
+        app.typeKey(.downArrow, modifierFlags: [])
+        XCTAssertTrue(
+            app.staticTexts["Ending chapter body"].waitForExistence(timeout: 10),
+            "Expanding the sidebar should focus its chapter list for Up/Down navigation."
+        )
+        app.typeKey(.upArrow, modifierFlags: [])
+        XCTAssertTrue(app.staticTexts["Opening chapter body"].waitForExistence(timeout: 10))
+
+        app.typeKey("c", modifierFlags: [])
+        XCTAssertTrue(showSidebar.waitForExistence(timeout: 5))
+        app.typeKey(.rightArrow, modifierFlags: [])
+        XCTAssertTrue(
+            app.staticTexts["Ending chapter body"].waitForExistence(timeout: 10),
+            "Collapsing the sidebar should return focus to the reader panel."
+        )
 
         app.typeKey("w", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))

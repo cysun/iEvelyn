@@ -7,6 +7,8 @@ struct ReaderWebView: View {
     let loadID: ReaderRenderRequestID
     let restorationLocation: ReaderResolvedLocation
     let bookmarkNavigation: ReaderResolvedNavigation?
+    let shouldFocus: Bool
+    let focusRequestID: Int
     let onLocationChange: (ReaderLocationCapture) -> Void
     let onBookmarkNavigationCompleted: (UUID) -> Void
 
@@ -27,6 +29,8 @@ struct ReaderWebView: View {
         assetLoader: BookAssetDataLoader,
         restorationLocation: ReaderResolvedLocation,
         bookmarkNavigation: ReaderResolvedNavigation?,
+        shouldFocus: Bool,
+        focusRequestID: Int,
         onLocationChange: @escaping (ReaderLocationCapture) -> Void,
         onBookmarkNavigationCompleted: @escaping (UUID) -> Void
     ) {
@@ -34,6 +38,8 @@ struct ReaderWebView: View {
         self.loadID = loadID
         self.restorationLocation = restorationLocation
         self.bookmarkNavigation = bookmarkNavigation
+        self.shouldFocus = shouldFocus
+        self.focusRequestID = focusRequestID
         self.onLocationChange = onLocationChange
         self.onBookmarkNavigationCompleted = onBookmarkNavigationCompleted
 
@@ -68,6 +74,13 @@ struct ReaderWebView: View {
                         .webViewMagnificationGestures(.disabled)
                         .webViewLinkPreviews(.disabled)
                         .webViewElementFullscreenBehavior(.disabled)
+                        .background {
+                            ReaderFocusRequester(
+                                area: .readerPanel,
+                                isActive: shouldFocus,
+                                requestID: focusRequestID
+                            )
+                        }
                         .accessibilityLabel("Chapter content")
                         .accessibilityIdentifier("reader-chapter-content")
 

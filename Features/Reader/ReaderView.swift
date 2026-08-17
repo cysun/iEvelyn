@@ -50,12 +50,14 @@ struct ReaderApplicationRootView: View {
 
 struct ReaderView: View {
     @State private var model: ReaderViewModel
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var sidebarMode: ReaderSidebarMode = .contents
     @State private var isFindPresented = false
     @State private var findQuery = ""
     @State private var isAppearancePresented = false
     @State private var bookmarkPendingDeletion: Bookmark?
+    @State private var focusedArea = ReaderFocusArea.readerPanel
+    @State private var focusRequestID = 0
 
     let settings: ReaderSettingsStore
 
@@ -93,6 +95,9 @@ struct ReaderView: View {
         .windowToolbarFullScreenVisibility(.onHover)
         .frame(minWidth: 720, idealWidth: 1_080, minHeight: 520, idealHeight: 760)
         .accessibilityIdentifier("reader-root")
+        .background {
+            ReaderKeyboardShortcutMonitor(onCommand: handleReaderKeyCommand)
+        }
         .task {
             await model.observe()
         }
@@ -101,6 +106,10 @@ struct ReaderView: View {
         }
         .onDisappear {
             Task { await model.flushReadingProgress() }
+        }
+        .onChange(of: columnVisibility) { _, visibility in
+            let sidebarIsVisible = visibility != .detailOnly
+            requestFocus(sidebarIsVisible ? .sidebar : .readerPanel)
         }
         .safeAreaInset(edge: .bottom) {
             if let persistenceErrorMessage = model.persistenceErrorMessage {
@@ -167,6 +176,13 @@ struct ReaderView: View {
                 }
             }
         }
+        .background {
+            ReaderFocusRequester(
+                area: .sidebar,
+                isActive: focusedArea == .sidebar,
+                requestID: focusRequestID
+            )
+        }
         .accessibilityLabel("Table of Contents")
         .accessibilityIdentifier("reader-table-of-contents")
     }
@@ -225,6 +241,13 @@ struct ReaderView: View {
                     }
                 }
             }
+        }
+        .background {
+            ReaderFocusRequester(
+                area: .sidebar,
+                isActive: focusedArea == .sidebar,
+                requestID: focusRequestID
+            )
         }
         .accessibilityLabel("Bookmarks")
         .accessibilityIdentifier("reader-bookmarks")
@@ -286,6 +309,8 @@ struct ReaderView: View {
                     assetLoader: model.assetLoader,
                     restorationLocation: model.restorationLocation(for: renderedChapter),
                     bookmarkNavigation: model.resolvedBookmarkNavigation(for: renderedChapter),
+                    shouldFocus: focusedArea == .readerPanel,
+                    focusRequestID: focusRequestID,
                     onLocationChange: { location in
                         model.recordLocation(location, chapterID: renderedChapter.chapterID)
                     },
@@ -328,8 +353,7 @@ struct ReaderView: View {
                 Label("Previous Chapter", systemImage: "chevron.left")
             }
             .disabled(!model.canMovePrevious)
-            .keyboardShortcut(.leftArrow, modifiers: [.command, .option])
-            .help("Previous Chapter (Command-Option-Left Arrow)")
+            .help("Previous Chapter (Left Arrow)")
             .accessibilityIdentifier("reader-previous-chapter")
 
             chapterJumpMenu
@@ -340,22 +364,14 @@ struct ReaderView: View {
                 Label("Next Chapter", systemImage: "chevron.right")
             }
             .disabled(!model.canMoveNext)
-            .keyboardShortcut(.rightArrow, modifiers: [.command, .option])
-            .help("Next Chapter (Command-Option-Right Arrow)")
+            .help("Next Chapter (Right Arrow)")
             .accessibilityIdentifier("reader-next-chapter")
 
-            Button {
-                Task {
-                    if await model.addBookmark() {
-                        sidebarMode = .bookmarks
-                    }
-                }
-            } label: {
+            Button(action: addBookmark) {
                 Label("Add Bookmark", systemImage: "bookmark")
             }
             .disabled(model.selectedChapter == nil || model.renderedChapter == nil)
-            .keyboardShortcut("b", modifiers: .command)
-            .help("Add Bookmark (Command-B)")
+            .help("Add Bookmark (B)")
             .accessibilityIdentifier("reader-add-bookmark")
 
             Button {
@@ -429,6 +445,58 @@ struct ReaderView: View {
             }
         )
     }
+
+    private func handleReaderKeyCommand(_ command: ReaderKeyCommand) -> Bool {
+        switch command {
+        case .addBookmark:
+            addBookmark()
+            return true
+        case .toggleSidebar:
+            columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+            return true
+        case .previousChapter:
+            if model.canMovePrevious {
+                model.movePrevious()
+            }
+            return true
+        case .nextChapter:
+            if model.canMoveNext {
+                model.moveNext()
+            }
+            return true
+        case .previousSidebarItem:
+            guard focusedArea == .sidebar, sidebarMode == .contents else { return false }
+            if model.canMovePrevious {
+                model.movePrevious()
+            }
+            return true
+        case .nextSidebarItem:
+            guard focusedArea == .sidebar, sidebarMode == .contents else { return false }
+            if model.canMoveNext {
+                model.moveNext()
+            }
+            return true
+        }
+    }
+
+    private func requestFocus(_ area: ReaderFocusArea) {
+        focusedArea = area
+        focusRequestID &+= 1
+    }
+
+    private func addBookmark() {
+        guard model.selectedChapter != nil, model.renderedChapter != nil else { return }
+        Task {
+            if await model.addBookmark() {
+                sidebarMode = .bookmarks
+            }
+        }
+    }
+}
+
+enum ReaderFocusArea: Hashable {
+    case sidebar
+    case readerPanel
 }
 
 private enum ReaderSidebarMode: String, CaseIterable, Identifiable {

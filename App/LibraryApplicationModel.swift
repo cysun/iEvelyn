@@ -146,10 +146,28 @@ final class LibraryApplicationModel {
     }
 
     func restoreLibrary(from sourceURL: URL) async {
-        guard !isPerformingInterchange,
-              let currentRepository = repository as? GRDBLibraryRepository,
-              let activeDatabaseURL = currentRepository.database.location.databaseURL,
-              currentRepository.database.location.isProduction else {
+        guard !isPerformingInterchange else { return }
+
+        let currentRepository = repository as? GRDBLibraryRepository
+        let activeRootURL: URL
+        if let currentRepository,
+           let activeDatabaseURL = currentRepository.database.location.databaseURL,
+           currentRepository.database.location.isProduction {
+            activeRootURL = activeDatabaseURL.deletingLastPathComponent()
+        } else if currentRepository == nil,
+                  loadErrorMessage != nil,
+                  launchConfiguration.mode == .production {
+            do {
+                activeRootURL = try LibraryDatabase.productionDatabaseURL()
+                    .deletingLastPathComponent()
+            } catch {
+                alert = LibraryApplicationAlert(
+                    title: "Restore Unavailable",
+                    message: error.localizedDescription
+                )
+                return
+            }
+        } else {
             alert = LibraryApplicationAlert(
                 title: "Restore Unavailable",
                 message: LibraryInterchangeError.unavailableForCurrentLibrary.localizedDescription
@@ -159,19 +177,22 @@ final class LibraryApplicationModel {
         isPerformingInterchange = true
         defer { isPerformingInterchange = false }
 
-        let service = LibraryInterchangeService(repository: currentRepository)
+        let service = currentRepository.map { LibraryInterchangeService(repository: $0) }
+            ?? LibraryInterchangeService(recoveryLibraryRootURL: activeRootURL)
+        let originalLoadErrorMessage = loadErrorMessage
         var previousLibraryIsActive = true
         var preparedRestore: PreparedLibraryRestore?
         do {
             let prepared = try await service.prepareRestore(from: sourceURL)
             preparedRestore = prepared
-            let activeRootURL = activeDatabaseURL.deletingLastPathComponent()
             repository = nil
             isLoading = true
             loadErrorMessage = nil
             await Task.yield()
 
-            try await currentRepository.database.close()
+            if let currentRepository {
+                try await currentRepository.database.close()
+            }
             try await service.atomicallySwap(prepared, with: activeRootURL)
             previousLibraryIsActive = false
 
@@ -179,6 +200,7 @@ final class LibraryApplicationModel {
                 let restoredRepository = try await Self.openProductionRepository()
                 repository = restoredRepository
                 isLoading = false
+                loadErrorMessage = nil
                 await service.discardPreparedRestore(prepared)
                 preparedRestore = nil
                 alert = LibraryApplicationAlert(
@@ -191,12 +213,18 @@ final class LibraryApplicationModel {
                     previousLibraryIsActive = true
                     await service.discardPreparedRestore(prepared)
                     preparedRestore = nil
-                    repository = try await Self.openProductionRepository()
-                    isLoading = false
                 } catch {
                     loadErrorMessage = LibraryInterchangeError.atomicSwapFailed.localizedDescription
                     throw LibraryInterchangeError.atomicSwapFailed
                 }
+                do {
+                    repository = try await Self.openProductionRepository()
+                    loadErrorMessage = nil
+                } catch {
+                    repository = nil
+                    loadErrorMessage = originalLoadErrorMessage ?? error.localizedDescription
+                }
+                isLoading = false
                 throw restoredLibraryError
             }
         } catch is CancellationError {
@@ -204,7 +232,12 @@ final class LibraryApplicationModel {
                 await service.discardPreparedRestore(preparedRestore)
             }
             if repository == nil {
-                repository = try? await Self.openProductionRepository()
+                do {
+                    repository = try await Self.openProductionRepository()
+                    loadErrorMessage = nil
+                } catch {
+                    loadErrorMessage = originalLoadErrorMessage ?? error.localizedDescription
+                }
                 isLoading = false
             }
         } catch {
@@ -212,13 +245,18 @@ final class LibraryApplicationModel {
                 await service.discardPreparedRestore(preparedRestore)
             }
             if repository == nil {
-                repository = try? await Self.openProductionRepository()
+                do {
+                    repository = try await Self.openProductionRepository()
+                    loadErrorMessage = nil
+                } catch {
+                    loadErrorMessage = originalLoadErrorMessage ?? error.localizedDescription
+                }
                 isLoading = false
             }
             alert = LibraryApplicationAlert(
                 title: "Could Not Restore Library",
                 message: previousLibraryIsActive
-                    ? "\(error.localizedDescription) The previous library remains active."
+                    ? "\(error.localizedDescription) The previous library remains in place."
                     : "\(error.localizedDescription) The previous library was preserved in the restore staging area and was not deleted."
             )
         }
@@ -439,12 +477,20 @@ struct LibraryApplicationRootView: View {
         Group {
             if let repository = applicationModel.repository {
                 LibraryRootView(repository: repository)
-            } else if applicationModel.isLoading {
+            } else if applicationModel.isLoading || applicationModel.isPerformingInterchange {
                 ContentUnavailableView {
                     ProgressView()
-                    Text("Opening Library")
+                    Text(
+                        applicationModel.isPerformingInterchange
+                            ? "Restoring Library"
+                            : "Opening Library"
+                    )
                 } description: {
-                    Text("Preparing the local iEvelyn database…")
+                    Text(
+                        applicationModel.isPerformingInterchange
+                            ? "Validating the selected backup before replacing the local library…"
+                            : "Preparing the local iEvelyn database…"
+                    )
                 }
                 .accessibilityIdentifier("library-loading")
             } else {
@@ -458,6 +504,12 @@ struct LibraryApplicationRootView: View {
                             await applicationModel.retryLoading()
                         }
                     }
+                    .accessibilityIdentifier("library-load-retry")
+
+                    Button("Restore from Backup…") {
+                        isConfirmingRestore = true
+                    }
+                    .accessibilityIdentifier("library-load-restore")
                 }
                 .accessibilityIdentifier("library-load-error")
             }

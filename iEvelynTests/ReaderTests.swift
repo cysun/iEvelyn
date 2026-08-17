@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 import WebKit
@@ -5,6 +6,28 @@ import WebKit
 
 @Suite("Reading experience", .serialized)
 struct ReaderTests {
+    @Test("Reader bare-key commands map without overriding modified shortcuts")
+    @MainActor
+    func readerKeyboardCommands() throws {
+        let bookmark = try #require(keyEvent(characters: "b", keyCode: 11))
+        let toggleSidebar = try #require(keyEvent(characters: "c", keyCode: 8))
+        let previousChapter = try #require(keyEvent(specialKey: .leftArrow, keyCode: 123))
+        let nextChapter = try #require(keyEvent(specialKey: .rightArrow, keyCode: 124))
+        let previousSidebarItem = try #require(keyEvent(specialKey: .upArrow, keyCode: 126))
+        let nextSidebarItem = try #require(keyEvent(specialKey: .downArrow, keyCode: 125))
+        let commandBookmark = try #require(
+            keyEvent(characters: "b", modifiers: .command, keyCode: 11)
+        )
+
+        #expect(ReaderKeyCommand(event: bookmark) == .addBookmark)
+        #expect(ReaderKeyCommand(event: toggleSidebar) == .toggleSidebar)
+        #expect(ReaderKeyCommand(event: previousChapter) == .previousChapter)
+        #expect(ReaderKeyCommand(event: nextChapter) == .nextChapter)
+        #expect(ReaderKeyCommand(event: previousSidebarItem) == .previousSidebarItem)
+        #expect(ReaderKeyCommand(event: nextSidebarItem) == .nextSidebarItem)
+        #expect(ReaderKeyCommand(event: commandBookmark) == nil)
+    }
+
     @Test("Chapter navigation sorts deterministically and respects boundaries")
     func chapterNavigationAndBoundaries() {
         let bookID = UUID()
@@ -33,6 +56,32 @@ struct ReaderTests {
         #expect(!navigator.canMoveNext)
         let movedAfterEnd = navigator.moveNext()
         #expect(!movedAfterEnd)
+    }
+
+    private func keyEvent(
+        characters: String,
+        modifiers: NSEvent.ModifierFlags = [],
+        keyCode: UInt16
+    ) -> NSEvent? {
+        NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: modifiers,
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: characters,
+            charactersIgnoringModifiers: characters,
+            isARepeat: false,
+            keyCode: keyCode
+        )
+    }
+
+    private func keyEvent(
+        specialKey: NSEvent.SpecialKey,
+        keyCode: UInt16
+    ) -> NSEvent? {
+        keyEvent(characters: String(specialKey.unicodeScalar), keyCode: keyCode)
     }
 
     @Test("Chapter observation preserves a stable selection and recovers after deletion")

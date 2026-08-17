@@ -8,6 +8,10 @@ private struct LibraryDestinationFocusedValueKey: FocusedValueKey {
     typealias Value = Binding<LibraryDestination>
 }
 
+private struct LibrarySearchFocusFocusedValueKey: FocusedValueKey {
+    typealias Value = FocusState<Bool>.Binding
+}
+
 nonisolated enum LibraryInterchangeCommand: Equatable, Sendable {
     case createBackup
     case restoreBackup
@@ -30,6 +34,11 @@ extension FocusedValues {
         set { self[LibraryDestinationFocusedValueKey.self] = newValue }
     }
 
+    var librarySearchFocus: FocusState<Bool>.Binding? {
+        get { self[LibrarySearchFocusFocusedValueKey.self] }
+        set { self[LibrarySearchFocusFocusedValueKey.self] = newValue }
+    }
+
     var libraryInterchangeCommand: Binding<LibraryInterchangeCommand?>? {
         get { self[LibraryInterchangeCommandFocusedValueKey.self] }
         set { self[LibraryInterchangeCommandFocusedValueKey.self] = newValue }
@@ -39,6 +48,7 @@ extension FocusedValues {
 struct LibraryCommands: Commands {
     @FocusedBinding(\.libraryPresentation) private var presentation
     @FocusedBinding(\.libraryDestination) private var destination
+    @FocusedValue(\.librarySearchFocus) private var searchFocus
     @FocusedBinding(\.libraryInterchangeCommand) private var interchangeCommand
 
     var body: some Commands {
@@ -48,6 +58,12 @@ struct LibraryCommands: Commands {
             }
             .keyboardShortcut("l", modifiers: [.command, .shift])
             .disabled(destination == nil)
+
+            Button("Search Library") {
+                searchFocus?.wrappedValue = true
+            }
+            .keyboardShortcut("f", modifiers: .command)
+            .disabled(searchFocus == nil)
 
             Divider()
 

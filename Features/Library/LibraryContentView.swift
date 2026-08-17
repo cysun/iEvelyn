@@ -41,6 +41,7 @@ struct LibraryContentView: View {
                 Button("Add Book", systemImage: "plus") {
                     onAddBook()
                 }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
                 .help("Add a book")
                 .accessibilityIdentifier("library-add-book")
 
@@ -223,6 +224,7 @@ struct LibraryContentView: View {
                 Button("Add Book") {
                     onAddBook()
                 }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
