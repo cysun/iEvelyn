@@ -585,6 +585,27 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(savePanel.waitForNonExistence(timeout: 5))
 
         app.menuBars.menuBarItems["Library"].click()
+        app.menuItems["Restore Library…"].click()
+        let restoreConfirmation = app.sheets.firstMatch
+        XCTAssertTrue(restoreConfirmation.waitForExistence(timeout: 5))
+        let restoreAction = restoreConfirmation.buttons["Choose Backup File to Restore ..."]
+        XCTAssertTrue(
+            restoreAction.waitForExistence(timeout: 5),
+            "Restore Library should ask for confirmation with the intended backup-file wording."
+        )
+        restoreAction.click()
+        XCTAssertTrue(restoreAction.waitForNonExistence(timeout: 5))
+        let restorePanel = app.sheets.firstMatch
+        XCTAssertTrue(
+            restorePanel.waitForExistence(timeout: 5),
+            "Confirming Restore Library should present a system file picker."
+        )
+        XCTAssertTrue(restorePanel.buttons["Open"].waitForExistence(timeout: 5))
+        XCTAssertTrue(restorePanel.buttons["Cancel"].waitForExistence(timeout: 5))
+        restorePanel.buttons["Cancel"].click()
+        XCTAssertTrue(restorePanel.waitForNonExistence(timeout: 5))
+
+        app.menuBars.menuBarItems["Library"].click()
         app.menuItems["Import Legacy Library…"].click()
         let importPanel = app.sheets.firstMatch
         XCTAssertTrue(

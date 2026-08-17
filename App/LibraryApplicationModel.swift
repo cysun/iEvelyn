@@ -468,9 +468,9 @@ struct LibraryApplicationRootView: View {
     @State private var interchangeCommand: LibraryInterchangeCommand?
     @State private var backupPresentation: LibraryBackupPresentation?
     @State private var isExportingBackup = false
-    @State private var isImportingBackup = false
+    @State private var fileImportKind = LibraryFileImportKind.backup
+    @State private var isFileImporterPresented = false
     @State private var isConfirmingRestore = false
-    @State private var isSelectingLegacyBundle = false
     @State private var legacyImportPlan: LegacyImportPlan?
 
     var body: some View {
@@ -533,7 +533,7 @@ struct LibraryApplicationRootView: View {
             case .restoreBackup:
                 isConfirmingRestore = true
             case .importLegacyBundle:
-                isSelectingLegacyBundle = true
+                presentFileImporter(for: .legacyBundle)
             case .checkAndRepair:
                 Task {
                     await applicationModel.checkAndRepairLibrary()
@@ -554,44 +554,11 @@ struct LibraryApplicationRootView: View {
             }
         }
         .fileImporter(
-            isPresented: $isImportingBackup,
-            allowedContentTypes: [LibraryBackupDocument.contentType, .zip],
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: fileImportTypes,
             allowsMultipleSelection: false
         ) { result in
-            switch result {
-            case .success(let urls):
-                guard let sourceURL = urls.first else { return }
-                Task {
-                    await applicationModel.restoreLibrary(from: sourceURL)
-                }
-            case .failure(let error):
-                if (error as? CocoaError)?.code != .userCancelled {
-                    applicationModel.alert = LibraryApplicationAlert(
-                        title: "Could Not Open Library Backup",
-                        message: error.localizedDescription
-                    )
-                }
-            }
-        }
-        .fileImporter(
-            isPresented: $isSelectingLegacyBundle,
-            allowedContentTypes: [LegacyMigrationBundleType.contentType, .zip],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let sourceURL = urls.first else { return }
-                Task {
-                    legacyImportPlan = await applicationModel.prepareLegacyImport(from: sourceURL)
-                }
-            case .failure(let error):
-                if (error as? CocoaError)?.code != .userCancelled {
-                    applicationModel.alert = LibraryApplicationAlert(
-                        title: "Could Not Open Legacy Bundle",
-                        message: error.localizedDescription
-                    )
-                }
-            }
+            receiveFileSelection(result, for: fileImportKind)
         }
         .sheet(item: $legacyImportPlan) { plan in
             LegacyImportReviewView(plan: plan) { strategy in
@@ -606,8 +573,12 @@ struct LibraryApplicationRootView: View {
             isPresented: $isConfirmingRestore,
             titleVisibility: .visible
         ) {
-            Button("Choose Backup and Restore…", role: .destructive) {
-                isImportingBackup = true
+            Button("Choose Backup File to Restore ...", role: .destructive) {
+                Task { @MainActor in
+                    isConfirmingRestore = false
+                    await Task.yield()
+                    presentFileImporter(for: .backup)
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
@@ -619,6 +590,60 @@ struct LibraryApplicationRootView: View {
                 message: Text(alert.message),
                 dismissButton: .default(Text("OK"))
             )
+        }
+    }
+
+    private var fileImportTypes: [UTType] {
+        switch fileImportKind {
+        case .backup:
+            [LibraryBackupDocument.contentType, .zip]
+        case .legacyBundle:
+            [LegacyMigrationBundleType.contentType, .zip]
+        }
+    }
+
+    private func presentFileImporter(for kind: LibraryFileImportKind) {
+        fileImportKind = kind
+        isFileImporterPresented = true
+    }
+
+    private func receiveFileSelection(
+        _ result: Result<[URL], Error>,
+        for kind: LibraryFileImportKind
+    ) {
+        switch result {
+        case .success(let urls):
+            guard let sourceURL = urls.first else { return }
+            switch kind {
+            case .backup:
+                Task {
+                    await applicationModel.restoreLibrary(from: sourceURL)
+                }
+            case .legacyBundle:
+                Task {
+                    legacyImportPlan = await applicationModel.prepareLegacyImport(from: sourceURL)
+                }
+            }
+        case .failure(let error):
+            guard (error as? CocoaError)?.code != .userCancelled else { return }
+            applicationModel.alert = LibraryApplicationAlert(
+                title: kind.errorTitle,
+                message: error.localizedDescription
+            )
+        }
+    }
+}
+
+private enum LibraryFileImportKind {
+    case backup
+    case legacyBundle
+
+    var errorTitle: String {
+        switch self {
+        case .backup:
+            "Could Not Open Library Backup"
+        case .legacyBundle:
+            "Could Not Open Legacy Bundle"
         }
     }
 }
