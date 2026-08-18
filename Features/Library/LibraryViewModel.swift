@@ -175,6 +175,23 @@ final class LibraryViewModel {
         )
     }
 
+    func covers(for bookID: UUID) async throws -> [Asset] {
+        try await repository.coverAssets(forBookID: bookID)
+    }
+
+    func addCovers(to bookID: UUID, from sourceURLs: [URL]) async throws {
+        try await repository.addCovers(bookID: bookID, from: sourceURLs, at: now())
+    }
+
+    func makeCurrentCover(_ coverID: UUID, for bookID: UUID) async throws {
+        try await repository.setCurrentCover(bookID: bookID, coverID: coverID, at: now())
+    }
+
+    func removeCover(_ coverID: UUID, from bookID: UUID) async throws {
+        defer { coverCache.removeObject(forKey: coverID as NSUUID) }
+        try await repository.removeCover(bookID: bookID, coverID: coverID, at: now())
+    }
+
     func clearSearch() {
         searchText = ""
     }
@@ -241,7 +258,6 @@ final class LibraryViewModel {
                 id: id,
                 metadata: submission.metadata,
                 chapterUpdate: chapterUpdate,
-                coverUpdate: submission.coverUpdate,
                 at: now()
             )
             bookID = id
@@ -251,16 +267,9 @@ final class LibraryViewModel {
             }
             let content = try await bookContentImporter.loadCompleteBook(from: contentFileURL)
             try content.validateMetadata(validatedMetadata)
-            let coverSourceURL: URL?
-            if case .replace(let sourceURL) = submission.coverUpdate {
-                coverSourceURL = sourceURL
-            } else {
-                coverSourceURL = nil
-            }
             bookID = try await repository.createBook(
                 metadata: submission.metadata,
                 contentChapters: content.chapters,
-                coverSourceURL: coverSourceURL,
                 at: now()
             )
         }

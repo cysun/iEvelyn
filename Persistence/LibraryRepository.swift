@@ -14,14 +14,12 @@ nonisolated protocol LibraryRepository: Sendable {
     func createBook(
         metadata: BookMetadataInput,
         contentChapters: [ImportedBookChapter],
-        coverSourceURL: URL?,
         at date: Date
     ) async throws -> UUID
     func updateBook(
         id: UUID,
         metadata: BookMetadataInput,
         chapterUpdate: BookChapterUpdate,
-        coverUpdate: BookCoverUpdate,
         at date: Date
     ) async throws
     func setFavorite(bookID: UUID, isFavorite: Bool, at date: Date) async throws
@@ -31,8 +29,10 @@ nonisolated protocol LibraryRepository: Sendable {
     func markBookOpened(id: UUID, at date: Date) async throws
     func deleteBookPermanently(id: UUID) async throws
     func emptyTrash() async throws -> Int
-    func importCover(bookID: UUID, from sourceURL: URL, at date: Date) async throws
-    func removeCover(bookID: UUID, at date: Date) async throws
+    func addCovers(bookID: UUID, from sourceURLs: [URL], at date: Date) async throws
+    func setCurrentCover(bookID: UUID, coverID: UUID, at date: Date) async throws
+    func removeCover(bookID: UUID, coverID: UUID, at date: Date) async throws
+    func coverAssets(forBookID bookID: UUID) async throws -> [Asset]
     func coverThumbnailData(for asset: Asset) async throws -> Data
     func assets(forBookID bookID: UUID) async throws -> [Asset]
     func bookAssetPayload(for url: URL) async throws -> LibraryAssetPayload
@@ -68,6 +68,7 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
     case bookmarkNotFound
     case bookNotFound
     case bookIsInTrash
+    case coverNotFound
     case permanentDeleteRequiresTrash
     case readOnlyRepository
 
@@ -91,6 +92,8 @@ nonisolated enum LibraryRepositoryError: LocalizedError, Equatable {
             "The selected book no longer exists."
         case .bookIsInTrash:
             "Restore the book before changing its chapters."
+        case .coverNotFound:
+            "The selected cover no longer exists for this book."
         case .permanentDeleteRequiresTrash:
             "Move the book to Trash before deleting it permanently."
         case .readOnlyRepository:
@@ -131,7 +134,6 @@ extension LibraryRepository {
     func createBook(
         metadata: BookMetadataInput,
         contentChapters: [ImportedBookChapter],
-        coverSourceURL: URL?,
         at date: Date
     ) async throws -> UUID {
         throw LibraryRepositoryError.readOnlyRepository
@@ -141,7 +143,6 @@ extension LibraryRepository {
         id: UUID,
         metadata: BookMetadataInput,
         chapterUpdate: BookChapterUpdate,
-        coverUpdate: BookCoverUpdate,
         at date: Date
     ) async throws {
         throw LibraryRepositoryError.readOnlyRepository
@@ -175,13 +176,19 @@ extension LibraryRepository {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
-    func importCover(bookID: UUID, from sourceURL: URL, at date: Date) async throws {
+    func addCovers(bookID: UUID, from sourceURLs: [URL], at date: Date) async throws {
         throw LibraryRepositoryError.readOnlyRepository
     }
 
-    func removeCover(bookID: UUID, at date: Date) async throws {
+    func setCurrentCover(bookID: UUID, coverID: UUID, at date: Date) async throws {
         throw LibraryRepositoryError.readOnlyRepository
     }
+
+    func removeCover(bookID: UUID, coverID: UUID, at date: Date) async throws {
+        throw LibraryRepositoryError.readOnlyRepository
+    }
+
+    func coverAssets(forBookID bookID: UUID) async throws -> [Asset] { [] }
 
     func coverThumbnailData(for asset: Asset) async throws -> Data {
         throw LibraryRepositoryError.readOnlyRepository
@@ -592,7 +599,6 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
     func createBook(
         metadata: BookMetadataInput,
         contentChapters: [ImportedBookChapter],
-        coverSourceURL: URL?,
         at date: Date = .now
     ) async throws -> UUID {
         let metadata = try metadata.validated()
@@ -609,53 +615,32 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             updatedAt: date,
             lastOpenedAt: nil
         )
-        let preparedCover: PreparedLibraryAsset?
-        if let coverSourceURL {
-            preparedCover = try await assetStore.prepareCoverImport(
-                bookID: book.id,
-                sourceURL: coverSourceURL,
-                at: date
+        try await database.write { database in
+            try book.insert(database)
+            try Self.replaceAuthors(
+                forBookID: book.id,
+                displayNames: metadata.authors,
+                at: date,
+                database: database
             )
-        } else {
-            preparedCover = nil
-        }
-
-        do {
-            try await database.write { database in
-                try book.insert(database)
-                try Self.replaceAuthors(
-                    forBookID: book.id,
-                    displayNames: metadata.authors,
-                    at: date,
-                    database: database
+            try Self.replaceTags(
+                forBookID: book.id,
+                names: metadata.tags,
+                at: date,
+                database: database
+            )
+            for (position, importedChapter) in contentChapters.enumerated() {
+                try Chapter(
+                    bookID: book.id,
+                    title: importedChapter.title,
+                    markdown: importedChapter.markdown,
+                    position: position,
+                    createdAt: date,
+                    updatedAt: date
                 )
-                try Self.replaceTags(
-                    forBookID: book.id,
-                    names: metadata.tags,
-                    at: date,
-                    database: database
-                )
-                for (position, importedChapter) in contentChapters.enumerated() {
-                    try Chapter(
-                        bookID: book.id,
-                        title: importedChapter.title,
-                        markdown: importedChapter.markdown,
-                        position: position,
-                        createdAt: date,
-                        updatedAt: date
-                    )
-                    .insert(database)
-                }
-                if let preparedCover {
-                    try preparedCover.asset.insert(database)
-                }
-                try LibrarySearchIndexer.reindexBook(bookID: book.id, database: database)
+                .insert(database)
             }
-        } catch {
-            if let preparedCover {
-                _ = await assetStore.discardPreparedAsset(preparedCover)
-            }
-            throw error
+            try LibrarySearchIndexer.reindexBook(bookID: book.id, database: database)
         }
         return book.id
     }
@@ -664,7 +649,6 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         id: UUID,
         metadata: BookMetadataInput,
         chapterUpdate: BookChapterUpdate,
-        coverUpdate: BookCoverUpdate,
         at date: Date = .now
     ) async throws {
         let metadata = try metadata.validated()
@@ -682,105 +666,47 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
             validatedChapterUpdate = .append(chapters)
         }
 
-        let preparedCover: PreparedLibraryAsset?
-        if case .replace(let sourceURL) = coverUpdate {
-            preparedCover = try await assetStore.prepareCoverImport(
-                bookID: id,
-                sourceURL: sourceURL,
-                at: date
+        try await database.write { database in
+            var book = try Self.fetchEditableBook(id: id, database: database)
+
+            book.title = metadata.title
+            book.subtitle = metadata.subtitle
+            book.summary = metadata.summary
+            book.updatedAt = date
+            try book.update(database)
+            try Self.replaceAuthors(
+                forBookID: id,
+                displayNames: metadata.authors,
+                at: date,
+                database: database
             )
-        } else {
-            preparedCover = nil
-        }
+            try Self.replaceTags(
+                forBookID: id,
+                names: metadata.tags,
+                at: date,
+                database: database
+            )
 
-        let previousCover: Asset?
-        do {
-            previousCover = try await database.write { database in
-                var book = try Self.fetchEditableBook(id: id, database: database)
-
-                book.title = metadata.title
-                book.subtitle = metadata.subtitle
-                book.summary = metadata.summary
-                book.updatedAt = date
-                try book.update(database)
-                try Self.replaceAuthors(
+            switch validatedChapterUpdate {
+            case .unchanged:
+                break
+            case .replace(let chapters):
+                try Self.replaceImportedChapters(
+                    chapters,
                     forBookID: id,
-                    displayNames: metadata.authors,
                     at: date,
                     database: database
                 )
-                try Self.replaceTags(
-                    forBookID: id,
-                    names: metadata.tags,
+            case .append(let chapters):
+                try Self.appendImportedChapters(
+                    chapters,
+                    toBookID: id,
                     at: date,
                     database: database
                 )
-
-                switch validatedChapterUpdate {
-                case .unchanged:
-                    break
-                case .replace(let chapters):
-                    try Self.replaceImportedChapters(
-                        chapters,
-                        forBookID: id,
-                        at: date,
-                        database: database
-                    )
-                case .append(let chapters):
-                    try Self.appendImportedChapters(
-                        chapters,
-                        toBookID: id,
-                        at: date,
-                        database: database
-                    )
-                }
-
-                try LibrarySearchIndexer.reindexBook(bookID: id, database: database)
-
-                switch coverUpdate {
-                case .unchanged:
-                    return nil
-                case .remove:
-                    let previousCover = try Self.fetchCover(bookID: id, database: database)
-                    if let previousCover {
-                        _ = try previousCover.delete(database)
-                    }
-                    return previousCover
-                case .replace:
-                    guard let preparedCover else {
-                        throw LibraryAssetError.fileImportFailed
-                    }
-                    let previousCover = try Self.fetchCover(bookID: id, database: database)
-                    if let previousCover {
-                        _ = try previousCover.delete(database)
-                    }
-                    try preparedCover.asset.insert(database)
-                    return previousCover
-                }
             }
-        } catch {
-            if let preparedCover {
-                _ = await assetStore.discardPreparedAsset(preparedCover)
-            }
-            throw error
-        }
 
-        if let previousCover {
-            let report = await assetStore.removeFiles(for: [previousCover])
-            if report.failedRemovalCount > 0 {
-                let completedAction = switch coverUpdate {
-                case .remove:
-                    "The book and cover were updated"
-                case .replace:
-                    "The book and replacement cover were updated"
-                case .unchanged:
-                    "The book was updated"
-                }
-                throw LibraryAssetError.cleanupIncomplete(
-                    completedAction: completedAction,
-                    remainingFileCount: report.failedRemovalCount
-                )
-            }
+            try LibrarySearchIndexer.reindexBook(bookID: id, database: database)
         }
     }
 
@@ -916,71 +842,127 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         return bookIDs.count
     }
 
-    func importCover(
+    func addCovers(
         bookID: UUID,
-        from sourceURL: URL,
+        from sourceURLs: [URL],
         at date: Date = .now
     ) async throws {
-        let preparedAsset = try await assetStore.prepareCoverImport(
-            bookID: bookID,
-            sourceURL: sourceURL,
-            at: date
-        )
-
-        let previousCover: Asset?
+        guard !sourceURLs.isEmpty else { return }
+        var preparedAssets: [PreparedLibraryAsset] = []
         do {
-            previousCover = try await database.write { database in
-                guard var book = try Book.fetchOne(database, key: bookID.databaseString) else {
-                    throw LibraryRepositoryError.bookNotFound
-                }
-
-                let previousCover = try Self.fetchCover(bookID: bookID, database: database)
-                if let previousCover {
-                    _ = try previousCover.delete(database)
-                }
-                try preparedAsset.asset.insert(database)
-
-                book.updatedAt = date
-                try book.update(database)
-                return previousCover
-            }
-        } catch {
-            _ = await assetStore.discardPreparedAsset(preparedAsset)
-            throw error
-        }
-
-        if let previousCover {
-            let report = await assetStore.removeFiles(for: [previousCover])
-            if report.failedRemovalCount > 0 {
-                throw LibraryAssetError.cleanupIncomplete(
-                    completedAction: "The cover was replaced",
-                    remainingFileCount: report.failedRemovalCount
+            for sourceURL in sourceURLs {
+                preparedAssets.append(
+                    try await assetStore.prepareCoverImport(
+                        bookID: bookID,
+                        sourceURL: sourceURL,
+                        at: date
+                    )
                 )
             }
+            let preparedAssetsForInsertion = preparedAssets
+
+            try await database.write { database in
+                var book = try Self.fetchEditableBook(id: bookID, database: database)
+                let hasCurrentCover = try Self.fetchCurrentCover(
+                    bookID: bookID,
+                    database: database
+                ) != nil
+                for (index, preparedAsset) in preparedAssetsForInsertion.enumerated() {
+                    var asset = preparedAsset.asset
+                    asset.isCurrentCover = !hasCurrentCover
+                        && index == preparedAssetsForInsertion.startIndex
+                    try asset.insert(database)
+                }
+                book.updatedAt = date
+                try book.update(database)
+            }
+        } catch {
+            for preparedAsset in preparedAssets {
+                _ = await assetStore.discardPreparedAsset(preparedAsset)
+            }
+            throw error
         }
     }
 
-    func removeCover(bookID: UUID, at date: Date = .now) async throws {
-        let previousCover = try await database.write { database in
-            guard var book = try Book.fetchOne(database, key: bookID.databaseString) else {
-                throw LibraryRepositoryError.bookNotFound
-            }
-            guard let previousCover = try Self.fetchCover(bookID: bookID, database: database) else {
-                return nil as Asset?
+    func setCurrentCover(
+        bookID: UUID,
+        coverID: UUID,
+        at date: Date = .now
+    ) async throws {
+        try await database.write { database in
+            var book = try Self.fetchEditableBook(id: bookID, database: database)
+            guard var selectedCover = try Self.fetchCover(
+                bookID: bookID,
+                coverID: coverID,
+                database: database
+            ) else {
+                throw LibraryRepositoryError.coverNotFound
             }
 
-            _ = try previousCover.delete(database)
+            try database.execute(
+                sql: """
+                    UPDATE assets SET isCurrentCover = 0
+                    WHERE bookID = ? AND purpose = ? AND isCurrentCover = 1
+                    """,
+                arguments: [bookID.databaseString, AssetPurpose.cover.rawValue]
+            )
+            selectedCover.isCurrentCover = true
+            selectedCover.updatedAt = date
+            try selectedCover.update(database)
             book.updatedAt = date
             try book.update(database)
-            return previousCover
+        }
+    }
+
+    func removeCover(
+        bookID: UUID,
+        coverID: UUID,
+        at date: Date = .now
+    ) async throws {
+        let removedCover = try await database.write { database in
+            var book = try Self.fetchEditableBook(id: bookID, database: database)
+            guard let cover = try Self.fetchCover(
+                bookID: bookID,
+                coverID: coverID,
+                database: database
+            ) else {
+                throw LibraryRepositoryError.coverNotFound
+            }
+
+            _ = try cover.delete(database)
+            if cover.isCurrentCover,
+               var promotedCover = try Self.fetchFirstCover(
+                   bookID: bookID,
+                   database: database
+               ) {
+                promotedCover.isCurrentCover = true
+                promotedCover.updatedAt = date
+                try promotedCover.update(database)
+            }
+            book.updatedAt = date
+            try book.update(database)
+            return cover
         }
 
-        guard let previousCover else { return }
-        let report = await assetStore.removeFiles(for: [previousCover])
+        let report = await assetStore.removeFiles(for: [removedCover])
         if report.failedRemovalCount > 0 {
             throw LibraryAssetError.cleanupIncomplete(
                 completedAction: "The cover was removed",
                 remainingFileCount: report.failedRemovalCount
+            )
+        }
+    }
+
+    func coverAssets(forBookID bookID: UUID) async throws -> [Asset] {
+        try await database.read { database in
+            try Asset.fetchAll(
+                database,
+                sql: """
+                    SELECT * FROM assets
+                    WHERE bookID = ? AND purpose = ?
+                    ORDER BY isCurrentCover DESC, createdAt, id
+                    """,
+                arguments: [bookID.databaseString, AssetPurpose.cover.rawValue]
             )
         }
     }
@@ -1479,7 +1461,17 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         let progressByBook = Dictionary(
             uniqueKeysWithValues: progressRows.map { ($0.bookID, $0.overallProgress) }
         )
-        let coverByBook = Dictionary(uniqueKeysWithValues: covers.map { ($0.bookID, $0) })
+        let coversByBook = Dictionary(grouping: covers, by: \.bookID).mapValues { covers in
+            covers.sorted {
+                if $0.isCurrentCover != $1.isCurrentCover {
+                    return $0.isCurrentCover
+                }
+                if $0.createdAt != $1.createdAt {
+                    return $0.createdAt < $1.createdAt
+                }
+                return $0.id.databaseString < $1.id.databaseString
+            }
+        }
 
         return books.map { book in
             let progress = progressByBook[book.id]
@@ -1495,7 +1487,7 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
                 isCurrentlyReading: progress != nil,
                 readingProgress: progress,
                 isTrashed: book.trashedAt != nil,
-                coverAsset: coverByBook[book.id],
+                coverAssets: coversByBook[book.id, default: []],
                 coverStyle: .derived(from: book.id),
                 updatedAt: book.updatedAt,
                 lastOpenedAt: book.lastOpenedAt,
@@ -1700,10 +1692,45 @@ nonisolated final class GRDBLibraryRepository: LibraryRepository, Sendable {
         }
     }
 
-    private static func fetchCover(bookID: UUID, database: Database) throws -> Asset? {
+    private static func fetchCurrentCover(bookID: UUID, database: Database) throws -> Asset? {
         try Asset.fetchOne(
             database,
-            sql: "SELECT * FROM assets WHERE bookID = ? AND purpose = ?",
+            sql: """
+                SELECT * FROM assets
+                WHERE bookID = ? AND purpose = ? AND isCurrentCover = 1
+                """,
+            arguments: [bookID.databaseString, AssetPurpose.cover.rawValue]
+        )
+    }
+
+    private static func fetchCover(
+        bookID: UUID,
+        coverID: UUID,
+        database: Database
+    ) throws -> Asset? {
+        try Asset.fetchOne(
+            database,
+            sql: """
+                SELECT * FROM assets
+                WHERE id = ? AND bookID = ? AND purpose = ?
+                """,
+            arguments: [
+                coverID.databaseString,
+                bookID.databaseString,
+                AssetPurpose.cover.rawValue,
+            ]
+        )
+    }
+
+    private static func fetchFirstCover(bookID: UUID, database: Database) throws -> Asset? {
+        try Asset.fetchOne(
+            database,
+            sql: """
+                SELECT * FROM assets
+                WHERE bookID = ? AND purpose = ?
+                ORDER BY createdAt, id
+                LIMIT 1
+                """,
             arguments: [bookID.databaseString, AssetPurpose.cover.rawValue]
         )
     }

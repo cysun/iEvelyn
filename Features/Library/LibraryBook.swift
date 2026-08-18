@@ -15,7 +15,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
     let isCurrentlyReading: Bool
     let readingProgress: Double?
     let isTrashed: Bool
-    let coverAsset: Asset?
+    let coverAssets: [Asset]
     let coverStyle: BookCoverStyle
     let updatedAt: Date
     let lastOpenedAt: Date?
@@ -34,6 +34,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
         readingProgress: Double?,
         isTrashed: Bool,
         coverAsset: Asset? = nil,
+        coverAssets: [Asset] = [],
         coverStyle: BookCoverStyle,
         updatedAt: Date? = nil,
         lastOpenedAt: Date? = nil,
@@ -50,7 +51,7 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
         self.isCurrentlyReading = isCurrentlyReading
         self.readingProgress = readingProgress
         self.isTrashed = isTrashed
-        self.coverAsset = coverAsset
+        self.coverAssets = coverAssets.isEmpty ? coverAsset.map { [$0] } ?? [] : coverAssets
         self.coverStyle = coverStyle
         self.updatedAt = updatedAt ?? dateAdded
         self.lastOpenedAt = lastOpenedAt
@@ -59,6 +60,10 @@ nonisolated struct LibraryBook: Identifiable, Hashable, Sendable {
 
     var authorLine: String {
         authors.joined(separator: ", ")
+    }
+
+    var coverAsset: Asset? {
+        coverAssets.first(where: \.isCurrentCover) ?? coverAssets.first
     }
 
     var clampedReadingProgress: Double? {

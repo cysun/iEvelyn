@@ -5,18 +5,16 @@ nonisolated struct BookEditorConfiguration: Identifiable, Sendable {
     let id: UUID
     let bookID: UUID?
     let metadata: BookMetadataInput
-    let hasCover: Bool
 
     static func adding() -> BookEditorConfiguration {
-        BookEditorConfiguration(id: UUID(), bookID: nil, metadata: .empty, hasCover: false)
+        BookEditorConfiguration(id: UUID(), bookID: nil, metadata: .empty)
     }
 
     static func editing(_ book: LibraryBook) -> BookEditorConfiguration {
         BookEditorConfiguration(
             id: book.id,
             bookID: book.id,
-            metadata: book.metadataInput,
-            hasCover: book.coverAsset != nil
+            metadata: book.metadataInput
         )
     }
 
@@ -33,8 +31,6 @@ struct BookEditorView: View {
     @State private var metadata: BookMetadataInput
     @State private var contentFileURL: URL?
     @State private var contentMode = BookContentFileMode.replace
-    @State private var coverUpdate = BookCoverUpdate.unchanged
-    @State private var fileImportKind = BookEditorFileImportKind.content
     @State private var isFileImporterPresented = false
     @State private var showsMoreOptions = false
     @State private var isSaving = false
@@ -143,7 +139,7 @@ struct BookEditorView: View {
                     }
 
                     Button("Choose Content File…", systemImage: "doc.badge.plus") {
-                        presentFileImporter(for: .content)
+                        isFileImporterPresented = true
                     }
                     .accessibilityIdentifier("book-editor-choose-content")
 
@@ -167,45 +163,6 @@ struct BookEditorView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                }
-
-                Section("Cover") {
-                    LabeledContent("Change") {
-                        Text(coverDescription)
-                            .foregroundStyle(coverDescriptionIsSecondary ? .secondary : .primary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .accessibilityIdentifier("book-editor-cover-file")
-                    }
-
-                    HStack {
-                        Button("Choose Cover…", systemImage: "photo.badge.plus") {
-                            presentFileImporter(for: .cover)
-                        }
-                        .accessibilityIdentifier("book-editor-choose-cover")
-
-                        switch coverUpdate {
-                        case .replace:
-                            Button("Clear Selection") {
-                                coverUpdate = .unchanged
-                            }
-                        case .remove:
-                            Button("Keep Current Cover") {
-                                coverUpdate = .unchanged
-                            }
-                        case .unchanged:
-                            if configuration.hasCover {
-                                Button("Remove Cover", systemImage: "photo.badge.minus", role: .destructive) {
-                                    coverUpdate = .remove
-                                }
-                                .accessibilityIdentifier("book-editor-remove-cover")
-                            }
-                        }
-                    }
-
-                    Text("Optional. JPEG, PNG, and HEIC images are supported; 2:3 artwork avoids cropping.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 }
 
                 if showsMoreOptions {
@@ -257,10 +214,10 @@ struct BookEditorView: View {
         .disabled(isSaving)
         .fileImporter(
             isPresented: $isFileImporterPresented,
-            allowedContentTypes: fileImportTypes,
+            allowedContentTypes: bookContentImportTypes,
             allowsMultipleSelection: false
         ) { result in
-            receiveSelection(result, for: fileImportKind)
+            receiveSelection(result)
         }
     }
 
@@ -277,22 +234,6 @@ struct BookEditorView: View {
         }
     }
 
-    private var coverDescription: String {
-        switch coverUpdate {
-        case .unchanged:
-            configuration.hasCover ? "Keep current cover" : "No cover"
-        case .replace(let sourceURL):
-            sourceURL.lastPathComponent
-        case .remove:
-            "Remove current cover"
-        }
-    }
-
-    private var coverDescriptionIsSecondary: Bool {
-        if case .unchanged = coverUpdate { return true }
-        return false
-    }
-
     private var bookContentImportTypes: [UTType] {
         var types: [UTType] = [.plainText]
         for fileExtension in ["md", "markdown"] {
@@ -303,34 +244,12 @@ struct BookEditorView: View {
         return types
     }
 
-    private var fileImportTypes: [UTType] {
-        switch fileImportKind {
-        case .content:
-            bookContentImportTypes
-        case .cover:
-            [.jpeg, .png, .heic]
-        }
-    }
-
-    private func presentFileImporter(for kind: BookEditorFileImportKind) {
-        fileImportKind = kind
-        isFileImporterPresented = true
-    }
-
-    private func receiveSelection(
-        _ result: Result<[URL], Error>,
-        for kind: BookEditorFileImportKind
-    ) {
+    private func receiveSelection(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             guard let sourceURL = urls.first else { return }
             errorMessage = nil
-            switch kind {
-            case .content:
-                contentFileURL = sourceURL
-            case .cover:
-                coverUpdate = .replace(sourceURL)
-            }
+            contentFileURL = sourceURL
         case .failure(let error):
             guard (error as NSError).code != NSUserCancelledError else { return }
             errorMessage = error.localizedDescription
@@ -343,8 +262,7 @@ struct BookEditorView: View {
         let submission = BookEditorSubmission(
             metadata: metadata,
             contentFileURL: contentFileURL,
-            contentMode: contentMode,
-            coverUpdate: coverUpdate
+            contentMode: contentMode
         )
 
         Task {
@@ -385,9 +303,4 @@ struct BookEditorView: View {
         return nil
 #endif
     }
-}
-
-private enum BookEditorFileImportKind {
-    case content
-    case cover
 }

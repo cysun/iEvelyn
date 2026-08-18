@@ -65,17 +65,26 @@ struct EPUBExportTests {
         #expect(!chapterDocument.contains("<style"))
     }
 
-    @Test("Multi-chapter Unicode export includes only referenced assets with a valid cover and spine")
+    @Test("Multi-chapter Unicode export uses the current cover and includes only referenced assets")
     func unicodeImageAndManifestCoverage() async throws {
         let bookID = UUID()
         let coverID = UUID()
+        let alternateCoverID = UUID()
         let unusedID = UUID()
         let coverData = try #require(Data(base64Encoded: Self.onePixelPNG))
+        let alternateCoverData = Data("alternate cover".utf8)
         let unusedData = Data("unused".utf8)
         let cover = makeAsset(
             id: coverID,
             bookID: bookID,
             data: coverData,
+            mediaType: "image/png",
+            isCurrentCover: true
+        )
+        let alternateCover = makeAsset(
+            id: alternateCoverID,
+            bookID: bookID,
+            data: alternateCoverData,
             mediaType: "image/png"
         )
         let unused = makeAsset(
@@ -89,7 +98,7 @@ struct EPUBExportTests {
             title: "毫末生 & Friends",
             authors: ["蛋伤", "Zoë Writer"],
             subtitle: "章节一览",
-            coverAsset: cover
+            coverAssets: [alternateCover, cover]
         )
         let assetURL = try BookAssetReference(bookID: bookID, assetID: coverID).url().absoluteString
         let first = makeChapter(
@@ -107,9 +116,13 @@ struct EPUBExportTests {
         let repository = EPUBFixtureRepository(
             book: book,
             chapters: [first, second],
-            assets: [cover, unused],
+            assets: [cover, alternateCover, unused],
             payloads: [
                 coverID: LibraryAssetPayload(data: coverData, mediaType: "image/png"),
+                alternateCoverID: LibraryAssetPayload(
+                    data: alternateCoverData,
+                    mediaType: "image/png"
+                ),
                 unusedID: LibraryAssetPayload(data: unusedData, mediaType: "image/png"),
             ]
         )
@@ -120,12 +133,14 @@ struct EPUBExportTests {
         let entries = Array(archive)
         let paths = entries.map(\.path)
         let coverPath = "OEBPS/Assets/\(coverID.databaseString).png"
+        let alternateCoverPath = "OEBPS/Assets/\(alternateCoverID.databaseString).png"
         let unusedPath = "OEBPS/Assets/\(unusedID.databaseString).png"
         let package = try text(at: "OEBPS/package.opf", in: archive)
         let coverDocument = try text(at: "OEBPS/Text/cover.xhtml", in: archive)
         let firstDocument = try text(at: "OEBPS/Text/chapter-\(first.id.databaseString).xhtml", in: archive)
 
         #expect(paths.contains(coverPath))
+        #expect(!paths.contains(alternateCoverPath))
         #expect(!paths.contains(unusedPath))
         #expect(try data(at: coverPath, in: archive) == coverData)
         #expect(try #require(entries.first(where: { $0.path == coverPath })).isCompressed == false)
@@ -389,7 +404,8 @@ struct EPUBExportTests {
         title: String,
         authors: [String] = ["Test Author"],
         subtitle: String? = nil,
-        coverAsset: Asset? = nil
+        coverAsset: Asset? = nil,
+        coverAssets: [Asset] = []
     ) -> LibraryBook {
         LibraryBook(
             id: id,
@@ -404,6 +420,7 @@ struct EPUBExportTests {
             readingProgress: nil,
             isTrashed: false,
             coverAsset: coverAsset,
+            coverAssets: coverAssets,
             coverStyle: .ocean,
             updatedAt: Date(timeIntervalSince1970: 1_700_000_123)
         )
@@ -439,7 +456,8 @@ struct EPUBExportTests {
         id: UUID,
         bookID: UUID,
         data: Data,
-        mediaType: String
+        mediaType: String,
+        isCurrentCover: Bool = false
     ) -> Asset {
         let checksum = SHA256.hash(data: data)
             .map { String(format: "%02x", $0) }
@@ -451,7 +469,8 @@ struct EPUBExportTests {
             mediaType: mediaType,
             storageRelativePath: "Assets/\(id.databaseString).\(mediaType == "image/heic" ? "heic" : "png")",
             checksum: checksum,
-            byteCount: Int64(data.count)
+            byteCount: Int64(data.count),
+            isCurrentCover: isCurrentCover
         )
     }
 

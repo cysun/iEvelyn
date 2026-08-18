@@ -23,7 +23,6 @@ struct LibrarySearchTests {
                     markdown: "## 北山经\n\n精卫填海的故事。\n\n这里也记载「夸父逐日」。"
                 )
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
 
@@ -126,7 +125,6 @@ struct LibrarySearchTests {
             contentChapters: [
                 ImportedBookChapter(title: "旧章", markdown: "## 旧章\n\n旧索引词。")
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
         #expect(try await matches("旧索引词", in: repository).count == 1)
@@ -137,7 +135,6 @@ struct LibrarySearchTests {
             chapterUpdate: .replace([
                 ImportedBookChapter(title: "新章", markdown: "## 新章\n\n替换后的词。")
             ]),
-            coverUpdate: .unchanged,
             at: referenceDate.addingTimeInterval(10)
         )
         #expect(try await matches("旧索引词", in: repository).isEmpty)
@@ -149,7 +146,6 @@ struct LibrarySearchTests {
             chapterUpdate: .append([
                 ImportedBookChapter(title: "附录", markdown: "## 附录\n\n追加索引词。")
             ]),
-            coverUpdate: .unchanged,
             at: referenceDate.addingTimeInterval(20)
         )
         #expect(try await matches("追加索引词", in: repository).count == 1)
@@ -181,7 +177,6 @@ struct LibrarySearchTests {
             contentChapters: [
                 ImportedBookChapter(title: "正文", markdown: "普通正文。")
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
         let chapterID = try #require(await repository.chapters(forBookID: bookID).first?.id)
@@ -214,7 +209,6 @@ struct LibrarySearchTests {
             contentChapters: [
                 ImportedBookChapter(title: "修复章", markdown: "需要重建的正文。")
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
         let originalCount = try await repository.database.read { database in

@@ -2,6 +2,7 @@ import SwiftUI
 
 enum BookManagementAction {
     case edit
+    case manageCovers
     case exportEPUB
     case exportMarkdown
     case toggleFavorite
@@ -27,6 +28,10 @@ struct BookManagementCommands: View {
         } else {
             Button("Edit Book…", systemImage: "pencil") {
                 onAction(.edit)
+            }
+
+            Button("Manage Covers…", systemImage: "photo.on.rectangle.angled") {
+                onAction(.manageCovers)
             }
 
             Button("Export EPUB…", systemImage: "square.and.arrow.up") {

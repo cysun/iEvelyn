@@ -301,7 +301,7 @@ struct ReaderView: View {
             }
             .accessibilityIdentifier("reader-render-error")
         } else if let renderedChapter = model.renderedChapter,
-                  renderedChapter.chapterID == model.selectedChapterID {
+                  renderedChapter.requestID == renderRequestID {
             ZStack(alignment: .topTrailing) {
                 ReaderWebView(
                     document: renderedChapter.document,

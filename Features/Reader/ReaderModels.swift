@@ -56,6 +56,7 @@ nonisolated enum ReaderTheme: String, CaseIterable, Codable, Sendable {
     case light
     case sepia
     case dark
+    case antiquePaper
 
     var title: String {
         switch self {
@@ -67,6 +68,8 @@ nonisolated enum ReaderTheme: String, CaseIterable, Codable, Sendable {
             "Sepia"
         case .dark:
             "Dark"
+        case .antiquePaper:
+            "Antique Paper"
         }
     }
 
@@ -118,6 +121,28 @@ nonisolated enum ReaderTheme: String, CaseIterable, Codable, Sendable {
               --surface: #292a2f;
               --quote: #27364b;
               --warning: #4b3b18;
+            }
+            """
+        case .antiquePaper:
+            """
+            :root {
+              color-scheme: light;
+              --page: #ead7a8;
+              --text: #3b2f20;
+              --secondary: #6e5b3e;
+              --accent: #765326;
+              --border: #b99c69;
+              --surface: rgba(231, 208, 160, 0.78);
+              --quote: rgba(219, 192, 139, 0.72);
+              --warning: rgba(224, 190, 112, 0.78);
+            }
+            html, body {
+              background-color: var(--page);
+              background-image: url("\(ReaderBundledResource.antiquePaperURLString)");
+              background-position: center;
+              background-repeat: no-repeat;
+              background-size: cover;
+              background-attachment: fixed;
             }
             """
         }

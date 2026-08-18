@@ -5,8 +5,8 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_PATH="$PROJECT_ROOT/iEvelyn.xcodeproj"
 SCHEME="iEvelyn"
-EXPECTED_VERSION="1.1"
-EXPECTED_BUILD="2"
+EXPECTED_VERSION="1.2"
+EXPECTED_BUILD="3"
 
 : "\${IEVELYN_DEVELOPMENT_TEAM:?Set IEVELYN_DEVELOPMENT_TEAM to the Apple Developer Team ID.}"
 : "\${IEVELYN_NOTARY_PROFILE:?Set IEVELYN_NOTARY_PROFILE to a validated notarytool Keychain profile.}"
@@ -14,10 +14,10 @@ EXPECTED_BUILD="2"
 DEVELOPER_DIR="\${DEVELOPER_DIR:-/Volumes/galfrey/Applications/Xcode.app/Contents/Developer}"
 SOURCE_PACKAGES_DIR="\${IEVELYN_SOURCE_PACKAGES_DIR:-/Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages}"
 DERIVED_DATA_DIR="\${IEVELYN_RELEASE_DERIVED_DATA:-/Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step16-Release}"
-RELEASE_ROOT="\${IEVELYN_RELEASE_ROOT:-/Volumes/galfrey/Xcode/Release/iEvelyn-1.1-2}"
+RELEASE_ROOT="\${IEVELYN_RELEASE_ROOT:-/Volumes/galfrey/Xcode/Release/iEvelyn-1.2-3}"
 ARCHIVE_PATH="$RELEASE_ROOT/iEvelyn.xcarchive"
 SUBMISSION_ZIP="$RELEASE_ROOT/iEvelyn-notarization.zip"
-FINAL_ZIP="$RELEASE_ROOT/iEvelyn-1.1-2-macOS.zip"
+FINAL_ZIP="$RELEASE_ROOT/iEvelyn-1.2-3-macOS.zip"
 SIGNED_ENTITLEMENTS="$RELEASE_ROOT/iEvelyn-signed-entitlements.plist"
 
 export DEVELOPER_DIR

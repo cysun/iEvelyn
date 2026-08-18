@@ -3,6 +3,7 @@ import Observation
 
 nonisolated struct ReaderRenderedChapter: Equatable, Sendable {
     let chapterID: Chapter.ID
+    let requestID: ReaderRenderRequestID
     let document: String
     let cacheKey: MarkdownRenderCacheKey
     let blocks: [MarkdownRenderedBlock]
@@ -297,6 +298,7 @@ final class ReaderViewModel {
 
         renderToken &+= 1
         let token = renderToken
+        let requestID = renderRequestID(for: preferences)
         isRendering = true
         renderErrorMessage = nil
 
@@ -317,6 +319,7 @@ final class ReaderViewModel {
             guard renderToken == token, selectedChapterID == chapter.id else { return }
             renderedChapter = ReaderRenderedChapter(
                 chapterID: chapter.id,
+                requestID: requestID,
                 document: styledDocument,
                 cacheKey: result.cacheKey,
                 blocks: result.blocks,

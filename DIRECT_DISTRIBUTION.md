@@ -1,6 +1,6 @@
 # Direct-download release
 
-iEvelyn 1.1 build 2 is intended for direct download outside the Mac App Store.
+iEvelyn 1.2 build 3 is intended for direct download outside the Mac App Store.
 The release candidate must be signed with a **Developer ID Application**
 certificate, use Hardened Runtime, be accepted by Apple's notary service, and
 carry a stapled notarization ticket. The app remains sandboxed.
@@ -41,7 +41,7 @@ Use a new output directory for every candidate:
 
     IEVELYN_DEVELOPMENT_TEAM=YOUR-TEAM-ID \
     IEVELYN_NOTARY_PROFILE=iEvelyn-notary \
-    IEVELYN_RELEASE_ROOT=/Volumes/galfrey/Xcode/Release/iEvelyn-1.1-2-candidate-1 \
+    IEVELYN_RELEASE_ROOT=/Volumes/galfrey/Xcode/Release/iEvelyn-1.2-3-candidate-1 \
     scripts/release-direct-download.sh
 
 The script:
@@ -49,13 +49,13 @@ The script:
 1. refuses to overwrite a previous candidate;
 2. requires a valid Developer ID Application identity;
 3. archives Release with Hardened Runtime and a secure timestamp;
-4. verifies that the packaged identity is version 1.1 build 2;
+4. verifies that the packaged identity is version 1.2 build 3;
 5. verifies the Developer ID identity, team, Hardened Runtime, secure
    timestamp, and signed entitlements, and rejects `get-task-allow`;
 6. submits a ZIP to notarytool and waits for acceptance;
 7. staples and validates the ticket;
 8. asks Gatekeeper to assess the app; and
-9. creates the final iEvelyn-1.1-2-macOS.zip plus its SHA-256 digest.
+9. creates the final iEvelyn-1.2-3-macOS.zip plus its SHA-256 digest.
 
 If notarization fails, use the submission identifier printed by notarytool:
 

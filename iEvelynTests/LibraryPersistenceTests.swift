@@ -28,7 +28,8 @@ struct LibraryPersistenceTests {
         #expect(diagnostics.appliedMigrations == [
             LibrarySchema.initialMigrationIdentifier,
             LibrarySchema.removePublicationMetadataMigrationIdentifier,
-            LibrarySchema.fullTextSearchMigrationIdentifier
+            LibrarySchema.fullTextSearchMigrationIdentifier,
+            LibrarySchema.multipleCoversMigrationIdentifier
         ])
         #expect(tables == [
             "assets",
@@ -104,8 +105,96 @@ struct LibraryPersistenceTests {
         #expect(migrations == [
             LibrarySchema.initialMigrationIdentifier,
             LibrarySchema.removePublicationMetadataMigrationIdentifier,
-            LibrarySchema.fullTextSearchMigrationIdentifier
+            LibrarySchema.fullTextSearchMigrationIdentifier,
+            LibrarySchema.multipleCoversMigrationIdentifier
         ])
+    }
+
+    @Test("Multiple-cover migration preserves the existing cover as current")
+    func multipleCoverMigrationPreservesExistingCover() throws {
+        let configuration = LibraryDatabase.databaseConfiguration()
+        let queue = try DatabaseQueue(configuration: configuration)
+        try LibrarySchema.versionThreeMigrator.migrate(queue)
+
+        let book = makeBook(title: "Migrated Cover")
+        let existingCoverID = UUID()
+        try queue.write { database in
+            try book.insert(database)
+            try database.execute(
+                sql: """
+                    INSERT INTO assets (
+                        id, bookID, chapterID, purpose, mediaType, storageRelativePath,
+                        checksum, byteCount, pixelWidth, pixelHeight, createdAt, updatedAt
+                    ) VALUES (?, ?, NULL, 'cover', 'image/png', ?, 'checksum-1', 1, 600, 900, ?, ?)
+                    """,
+                arguments: [
+                    existingCoverID.databaseString,
+                    book.id.databaseString,
+                    "Assets/Books/\(book.id.databaseString)/existing.png",
+                    Int64(referenceDate.timeIntervalSince1970 * 1_000),
+                    Int64(referenceDate.timeIntervalSince1970 * 1_000),
+                ]
+            )
+        }
+
+        try LibrarySchema.migrator.migrate(queue)
+
+        try queue.write { database in
+            let fetchedCover = try Asset.fetchOne(database, key: existingCoverID.databaseString)
+            let existingCover = try #require(fetchedCover)
+            #expect(existingCover.isCurrentCover)
+
+            let additionalCover = Asset(
+                bookID: book.id,
+                purpose: .cover,
+                mediaType: "image/jpeg",
+                storageRelativePath: "Assets/Books/\(book.id.databaseString)/additional.jpg",
+                checksum: "checksum-2",
+                byteCount: 2,
+                pixelWidth: 600,
+                pixelHeight: 900,
+                createdAt: referenceDate.addingTimeInterval(1),
+                updatedAt: referenceDate.addingTimeInterval(1)
+            )
+            try additionalCover.insert(database)
+
+            let duplicateCurrent = Asset(
+                id: UUID(),
+                bookID: book.id,
+                purpose: .cover,
+                mediaType: "image/jpeg",
+                storageRelativePath: "Assets/Books/\(book.id.databaseString)/duplicate-current.jpg",
+                checksum: "checksum-3",
+                byteCount: 3,
+                isCurrentCover: true,
+                createdAt: referenceDate.addingTimeInterval(2),
+                updatedAt: referenceDate.addingTimeInterval(2)
+            )
+            do {
+                try duplicateCurrent.insert(database)
+                Issue.record("Expected the partial unique index to reject a second current cover")
+            } catch {
+                // The database constraint is the behavior under test.
+            }
+
+            let invalidCurrentAsset = Asset(
+                bookID: book.id,
+                purpose: .attachment,
+                mediaType: "application/octet-stream",
+                storageRelativePath: "Assets/Books/\(book.id.databaseString)/invalid.bin",
+                checksum: "checksum-4",
+                byteCount: 4,
+                isCurrentCover: true,
+                createdAt: referenceDate,
+                updatedAt: referenceDate
+            )
+            do {
+                try invalidCurrentAsset.insert(database)
+                Issue.record("Expected a non-cover asset to be rejected as the current cover")
+            } catch {
+                // The database trigger is the behavior under test.
+            }
+        }
     }
 
     @Test("Disk databases use WAL and survive reopening")

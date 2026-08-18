@@ -236,7 +236,6 @@ struct LegacyMigrationImportTests {
             contentChapters: [
                 ImportedBookChapter(title: "Later", markdown: "## Later")
             ],
-            coverSourceURL: nil,
             at: Self.importedAt
         )
 
@@ -331,7 +330,6 @@ struct LegacyMigrationImportTests {
             contentChapters: [
                 ImportedBookChapter(title: "Existing", markdown: "## Existing\n\nOriginal content.")
             ],
-            coverSourceURL: nil,
             at: Self.importedAt.addingTimeInterval(-1_000)
         )
         return LegacyImportFixture(

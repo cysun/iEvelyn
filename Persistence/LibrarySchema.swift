@@ -4,8 +4,40 @@ nonisolated enum LibrarySchema {
     static let initialMigrationIdentifier = "v1_create_library_schema"
     static let removePublicationMetadataMigrationIdentifier = "v2_remove_publication_metadata"
     static let fullTextSearchMigrationIdentifier = "v3_add_full_text_search"
+    static let multipleCoversMigrationIdentifier = "v4_add_multiple_covers"
 
     static var migrator: DatabaseMigrator {
+        var migrator = versionThreeMigrator
+        migrator.registerMigration(
+            multipleCoversMigrationIdentifier,
+            foreignKeyChecks: .immediate
+        ) { database in
+            try database.execute(sql: """
+                DROP INDEX assets_one_cover_per_book;
+                ALTER TABLE assets ADD COLUMN isCurrentCover INTEGER NOT NULL DEFAULT 0
+                    CHECK (isCurrentCover IN (0, 1));
+                UPDATE assets SET isCurrentCover = 1 WHERE purpose = 'cover';
+                CREATE UNIQUE INDEX assets_one_current_cover_per_book
+                    ON assets(bookID)
+                    WHERE purpose = 'cover' AND isCurrentCover = 1;
+                CREATE TRIGGER assets_current_cover_must_be_cover_insert
+                BEFORE INSERT ON assets
+                WHEN NEW.isCurrentCover = 1 AND NEW.purpose != 'cover'
+                BEGIN
+                    SELECT RAISE(ABORT, 'only cover assets may be current covers');
+                END;
+                CREATE TRIGGER assets_current_cover_must_be_cover_update
+                BEFORE UPDATE OF purpose, isCurrentCover ON assets
+                WHEN NEW.isCurrentCover = 1 AND NEW.purpose != 'cover'
+                BEGIN
+                    SELECT RAISE(ABORT, 'only cover assets may be current covers');
+                END;
+                """)
+        }
+        return migrator
+    }
+
+    static var versionThreeMigrator: DatabaseMigrator {
         var migrator = versionOneMigrator
         migrator.registerMigration(
             removePublicationMetadataMigrationIdentifier,

@@ -27,7 +27,7 @@ struct LibraryInterchangeTests {
         #expect(decodedManifest.appBuild == "13")
         #expect(decodedManifest.counts.books == 1)
         #expect(decodedManifest.counts.chapters == 2)
-        #expect(decodedManifest.counts.assets == 1)
+        #expect(decodedManifest.counts.assets == 2)
         #expect(decodedManifest.counts.readingProgress == 1)
         #expect(decodedManifest.counts.bookmarks == 1)
         #expect(archivePaths == Set(
@@ -42,14 +42,12 @@ struct LibraryInterchangeTests {
         let restoredAssets = try await restoredRepository.fetchAssets()
 
         #expect(restoredSnapshot == sourceSnapshot)
-        #expect(restoredAssets.count == 1)
-        #expect(
-            try await restoredRepository.assetStore.verifyChecksum(of: #require(restoredAssets.first))
-        )
-        #expect(
-            try await restoredRepository.assetStore.storedData(for: #require(restoredAssets.first))
-                == fixture.coverData
-        )
+        #expect(restoredAssets.count == 2)
+        #expect(restoredAssets.filter(\.isCurrentCover).map(\.id) == [fixture.currentCoverID])
+        for asset in restoredAssets {
+            #expect(try await restoredRepository.assetStore.verifyChecksum(of: asset))
+            #expect(try await restoredRepository.assetStore.storedData(for: asset) == fixture.coverData)
+        }
 
         try await restoredDatabase.close()
         await service.discardPreparedRestore(prepared)
@@ -257,8 +255,13 @@ struct LibraryInterchangeTests {
 
         let coverData = try #require(Data(base64Encoded: Self.onePixelPNG))
         let coverURL = container.appending(path: "cover.png", directoryHint: .notDirectory)
+        let alternateCoverURL = container.appending(
+            path: "alternate-cover.png",
+            directoryHint: .notDirectory
+        )
         try FileManager.default.createDirectory(at: container, withIntermediateDirectories: true)
         try coverData.write(to: coverURL)
+        try coverData.write(to: alternateCoverURL)
         let createdAt = Date(timeIntervalSince1970: 1_723_776_000)
         let bookID = try await repository.createBook(
             metadata: BookMetadataInput(
@@ -272,8 +275,19 @@ struct LibraryInterchangeTests {
                 ImportedBookChapter(title: "Opening", markdown: "## Opening\n\nFirst paragraph."),
                 ImportedBookChapter(title: "结尾", markdown: "## 结尾\n\n最后一段。"),
             ],
-            coverSourceURL: coverURL,
             at: createdAt
+        )
+        try await repository.addCovers(
+            bookID: bookID,
+            from: [coverURL, alternateCoverURL],
+            at: createdAt
+        )
+        let covers = try await repository.coverAssets(forBookID: bookID)
+        let currentCoverID = try #require(covers.last).id
+        try await repository.setCurrentCover(
+            bookID: bookID,
+            coverID: currentCoverID,
+            at: createdAt.addingTimeInterval(1)
         )
         let chapters = try await repository.chapters(forBookID: bookID)
         let secondChapter = try #require(chapters.last)
@@ -306,7 +320,8 @@ struct LibraryInterchangeTests {
             libraryRootURL: root,
             database: database,
             repository: repository,
-            coverData: coverData
+            coverData: coverData,
+            currentCoverID: currentCoverID
         )
     }
 
@@ -404,6 +419,7 @@ nonisolated private struct InterchangeFixture: Sendable {
     let database: LibraryDatabase
     let repository: GRDBLibraryRepository
     let coverData: Data
+    let currentCoverID: UUID
 }
 
 nonisolated private struct CanonicalLibrarySnapshot: Equatable, Sendable {

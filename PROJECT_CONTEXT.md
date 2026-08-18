@@ -17,7 +17,7 @@ The existing Evelyn.NET application is a source of legacy book data only. Its we
 - Deliver a polished, modern, macOS-only application using native conventions.
 - Make the library pleasant to browse in grid and list forms.
 - Provide a focused reading experience with themes, typography controls, navigation, search, progress, and bookmarks.
-- Let the user create and update books from structured Markdown content files and manage metadata and covers through one book-level workflow.
+- Let the user create and update books from structured Markdown content files, manage metadata through the Add/Edit Book workflow, and manage multiple covers through a dedicated book-level workflow.
 - Generate standards-oriented EPUB 3 files from the same canonical content used by the app.
 - Store the local library in an explicit, inspectable SQLite database with externally stored assets.
 - Migrate useful book data from Evelyn.NET without coupling the new application to PostgreSQL or the old schema at runtime.
@@ -43,11 +43,11 @@ The main window uses a native sidebar and a full browsing area rather than a per
 
 ### Book management and authoring
 
-Adding a book uses one form for metadata, a required whole-book Markdown content file, and an optional cover. Editing uses the same form: omitting a content file preserves existing chapters, Replace consumes another complete book file, and Append adds chapter-only sections after the current last chapter. The form opens in a simple mode with title, one author, content, and cover; Show More Options reveals subtitle, description, ordered multi-author controls, and tag assignment without discarding values when it is turned off. There is no separate Book Info popup. Individual chapter management and editing—including adding, renaming, duplicating, deleting, reordering, importing, or directly editing a chapter—is not part of the current product workflow. Imported chapter structure remains visible through the reader's table of contents.
+Adding a book uses one form for metadata and a required whole-book Markdown content file. Editing uses the same form: omitting a content file preserves existing chapters, Replace consumes another complete book file, and Append adds chapter-only sections after the current last chapter. The form opens in a simple mode with title, one author, and content; Show More Options reveals subtitle, description, ordered multi-author controls, and tag assignment without discarding values when it is turned off. Cover images are managed separately from the book editor through a gallery that can add multiple images, select one current cover, and remove individual covers. There is no separate Book Info popup. Individual chapter management and editing—including adding, renaming, duplicating, deleting, reordering, importing, or directly editing a chapter—is not part of the current product workflow. Imported chapter structure remains visible through the reader's table of contents.
 
 ### Reading
 
-Reading should occur in a dedicated, distraction-reduced window with a table of contents, previous/next chapter navigation, configurable typography, light/dark/sepia-style themes, full-screen support, Find in Book, progress restoration, and semantic bookmarks. Keyboard and accessibility support are first-class requirements.
+Reading should occur in a dedicated, distraction-reduced window with a table of contents, previous/next chapter navigation, configurable typography, deterministic System/Light/Sepia/Dark themes plus an offline Antique Paper texture theme, full-screen support, Find in Book, progress restoration, and semantic bookmarks. Keyboard and accessibility support are first-class requirements.
 
 ### EPUB generation
 
@@ -113,6 +113,7 @@ Keeping both Markdown and HTML as independently editable database fields is expl
 - Store asset metadata and ownership in SQLite.
 - Store cover images and chapter assets as files under the application's sandboxed Application Support directory.
 - Use a 2:3 portrait aspect ratio for new cover artwork. Legacy 600x800 (3:4) cover files will not be migrated; replacement covers will be recreated for iEvelyn.
+- Allow multiple cover-purpose assets per book while designating at most one as the current cover used by library artwork and EPUB export. Existing single covers migrate as current; removing a current cover promotes another deterministically when one remains.
 - Address assets by stable UUIDs, never by user-supplied file names alone.
 - Copy imported files atomically, validate supported media types, and generate disposable thumbnails or render caches as needed.
 - Rendering should use an application-specific asset URL mechanism such as `book-asset://` instead of exposing arbitrary local paths.
@@ -146,7 +147,7 @@ Step 3 finalized the initial normalized schema with these concepts:
 | `Author` | Reusable normalized author identity and display name |
 | `BookAuthor` | Ordered many-to-many relationship between books and authors |
 | `Chapter` | Stable UUID, book ownership, title, canonical Markdown, order, timestamps, render revision/hash |
-| `Asset` | Stable UUID, book ownership, media type, relative storage path, checksum, dimensions or size, purpose |
+| `Asset` | Stable UUID, book ownership, media type, relative storage path, checksum, dimensions or size, purpose, and current-cover designation |
 | `Tag` | User-managed organization label |
 | `BookTag` | Many-to-many relationship between books and tags |
 | `ReadingProgress` | Last location and read timestamp for a book |
@@ -160,8 +161,8 @@ Initial schema decisions:
 - Store dates as integer milliseconds since the Unix epoch and decode them through one shared GRDB record policy.
 - The v2 migration removes language, publisher, and publication-date columns. iEvelyn's online self-published serials retain Added and Updated as library metadata instead of publication metadata.
 - The v3 migration creates canonical search documents, an external-content FTS5 index using `simple 0`, synchronization triggers, and a transactional initial rebuild for existing books.
-- Enforce nonempty titles/names, normalized unique author and tag names, unique ordered author/chapter positions, progress ranges, nonnegative asset sizes, and one cover-purpose asset per book.
-- Model a book's cover through its unique owned `Asset` whose purpose is `cover`, avoiding a circular book/asset foreign key.
+- Enforce nonempty titles/names, normalized unique author and tag names, unique ordered author/chapter positions, progress ranges, nonnegative asset sizes, and at most one current cover-purpose asset per book.
+- Model a book's covers through owned `Asset` rows whose purpose is `cover`; a partial unique index protects the current designation without adding a circular book/asset foreign key.
 - Cascade permanent book deletion through owned joins, chapters, assets, progress, and bookmarks. Restrict deletion of authors or tags while linked to a book.
 - Set chapter references on assets, reading progress, and bookmarks to null when a chapter is deleted, preserving book-level ownership and anchor fallback. Triggers reject cross-book chapter references.
 - Keep the existing nullable bookmark label and note columns reserved for compatibility, but do not expose either in the current product. Step 10 bookmarks are always unlabeled.
@@ -286,6 +287,7 @@ As of 2026-08-17:
 - Step 16 targets a direct-download version 1.0 build 1 release credited to Chengyu Sun. The app keeps App Sandbox, adds Hardened Runtime, and will use a Developer ID Application signature, secure timestamp, Apple notarization, stapling, Gatekeeper validation, and a checksummed ZIP. Signing and notarization credentials remain outside source control. The original app icon is a centered cream open book and amber bookmark on deep indigo; About uses a narrow AppKit bridge to display the running app icon because SwiftUI has no equivalent API.
 - New reader windows open with the sidebar collapsed and the reader panel focused. Bare `B`, Left Arrow, and Right Arrow add a bookmark or move between chapters; bare `C` toggles the sidebar. Expanding the sidebar focuses its current list, while collapsing it returns focus to the WebKit reader. An isolated AppKit bridge supplies window-scoped bare-key monitoring and first-responder requests because SwiftUI's macOS 26 WebView integration does not expose those capabilities reliably; text-entry responders are excluded. The reader keyboard and focus correction was manually accepted on 2026-08-17.
 - Step 17 was accepted on 2026-08-17 as the version 1.1 build 2 functional milestone. Its explicit per-window selection mode applies Select All to the currently visible destination and author/tag filter; batch export writes one EPUB or complete Markdown file per selected active book through SwiftUI's native multi-document exporter. Batch Trash moves and Empty Trash use validated database transactions, with asset cleanup reported separately if filesystem removal is incomplete. Clear Reading Progress deletes only the saved progress row, preserving bookmarks and Recently Opened history. Recently Opened is the default sort for new windows, and successful Add/Edit saves immediately open the saved book and update its recently-opened timestamp. The step adds no schema migration or dependency.
+- Step 18 is awaiting manual test as of 2026-08-17. It repairs reader appearance request/render identity, adds an offline Antique Paper texture served through a narrow bundled-resource WebKit scheme, migrates cover assets to allow multiple images with one explicit current cover, moves all cover operations out of Add/Edit Book into a dedicated management gallery, and identifies the resulting candidate as version 1.2 build 3.
 
 ## Open decisions
 

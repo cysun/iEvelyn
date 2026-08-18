@@ -295,6 +295,7 @@ struct ReaderTests {
         let document = try ReaderDocumentStyler.apply(preferences, to: result.document)
 
         #expect(document.contains("Content-Security-Policy"))
+        #expect(document.contains("img-src book-asset: ievelyn-resource:"))
         #expect(document.contains("<style id=\"reader-preferences\">"))
         #expect(document.contains("font-family: ui-monospace"))
         #expect(document.contains("font-size: 22.00px"))
@@ -304,6 +305,110 @@ struct ReaderTests {
         #expect(document.contains("--page: #f4ecd8"))
         #expect(document.contains("href=\"https://example.com\""))
         #expect(document.range(of: "reader-preferences")!.lowerBound < document.range(of: "</head>")!.lowerBound)
+    }
+
+    @Test("Every reader theme generates distinct controlled CSS")
+    func allThemeCSSIsDistinct() async throws {
+        let result = try await MarkdownRenderingService().render(
+            MarkdownRenderRequest(
+                markdown: "# Theme Probe\n\nReadable text.",
+                bookID: UUID(),
+                mode: .readerHTML,
+                documentTitle: "Theme Probe"
+            )
+        )
+        let expectedMarkers: [ReaderTheme: String] = [
+            .system: "color-scheme: light dark",
+            .light: "--page: #ffffff",
+            .sepia: "--page: #f4ecd8",
+            .dark: "--page: #1d1d1f",
+            .antiquePaper: ReaderBundledResource.antiquePaperURLString,
+        ]
+
+        var documents = Set<String>()
+        for theme in ReaderTheme.allCases {
+            let preferences = ReaderPreferences(
+                fontFamily: .serif,
+                fontSize: 18,
+                lineHeight: 1.65,
+                contentWidth: 82,
+                theme: theme
+            )
+            let document = try ReaderDocumentStyler.apply(preferences, to: result.document)
+            let expectedMarker = try #require(expectedMarkers[theme])
+            #expect(document.contains(expectedMarker))
+            documents.insert(document)
+        }
+
+        #expect(documents.count == ReaderTheme.allCases.count)
+        let antiquePaperURL = try #require(
+            URL(string: ReaderBundledResource.antiquePaperURLString)
+        )
+        let antiquePaperPayload = try ReaderBundledResource.payload(for: antiquePaperURL)
+        #expect(antiquePaperPayload.mediaType == "image/jpeg")
+        #expect(!antiquePaperPayload.data.isEmpty)
+        let invalidURL = try #require(
+            URL(string: "ievelyn-resource://reader/unknown.jpg")
+        )
+        #expect(throws: ReaderBundledResourceError.invalidURL) {
+            try ReaderBundledResource.payload(for: invalidURL)
+        }
+    }
+
+    @MainActor
+    @Test("Rendered chapters retain the exact appearance request that produced them")
+    func renderedChapterRequestIdentity() async throws {
+        let bookID = UUID()
+        let chapter = Chapter(
+            bookID: bookID,
+            title: "Appearance",
+            markdown: "# Appearance\n\nTheme identity.",
+            position: 0
+        )
+        let repository = ReaderSearchTargetRepository(
+            book: LibraryBook(
+                id: bookID,
+                title: "Appearance",
+                subtitle: nil,
+                authors: ["Reader"],
+                summary: "",
+                tags: [],
+                dateAdded: .now,
+                isFavorite: false,
+                isCurrentlyReading: false,
+                readingProgress: nil,
+                isTrashed: false,
+                coverStyle: .derived(from: bookID)
+            ),
+            chapters: [chapter]
+        )
+        let model = ReaderViewModel(bookID: bookID, repository: repository)
+        await model.observe()
+        let light = ReaderPreferences(
+            fontFamily: .serif,
+            fontSize: 18,
+            lineHeight: 1.65,
+            contentWidth: 82,
+            theme: .light
+        )
+        let dark = ReaderPreferences(
+            fontFamily: .serif,
+            fontSize: 18,
+            lineHeight: 1.65,
+            contentWidth: 82,
+            theme: .dark
+        )
+
+        await model.renderSelectedChapter(preferences: light)
+        let lightChapter = try #require(model.renderedChapter)
+        #expect(lightChapter.requestID == model.renderRequestID(for: light))
+        #expect(lightChapter.requestID != model.renderRequestID(for: dark))
+        #expect(lightChapter.document.contains("--page: #ffffff"))
+
+        await model.renderSelectedChapter(preferences: dark)
+        let darkChapter = try #require(model.renderedChapter)
+        #expect(darkChapter.requestID == model.renderRequestID(for: dark))
+        #expect(darkChapter.document.contains("--page: #1d1d1f"))
     }
 
     @Test("Reader preferences clamp invalid persisted numbers")
@@ -335,7 +440,7 @@ struct ReaderTests {
         firstWindow.fontSize = 24
         firstWindow.lineHeight = 1.9
         firstWindow.contentWidth = 88
-        firstWindow.theme = .dark
+        firstWindow.theme = .antiquePaper
 
         let secondWindow = ReaderSettingsStore(defaults: defaults)
         #expect(secondWindow.preferences == ReaderPreferences(
@@ -343,7 +448,7 @@ struct ReaderTests {
             fontSize: 24,
             lineHeight: 1.9,
             contentWidth: 88,
-            theme: .dark
+            theme: .antiquePaper
         ))
 
         secondWindow.reset()

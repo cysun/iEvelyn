@@ -133,7 +133,6 @@ struct BookContentImportTests {
                 ImportedBookChapter(title: "Opening", markdown: "## Opening\n\nFirst."),
                 ImportedBookChapter(title: "Ending", markdown: "## Ending\n\nLast.")
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
 
@@ -158,7 +157,6 @@ struct BookContentImportTests {
                 ImportedBookChapter(title: "Middle", markdown: "## Middle\n\nRemove me."),
                 ImportedBookChapter(title: "Ending", markdown: "## Ending\n\nKeep me.")
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
         let original = try await repository.chapters(forBookID: bookID)
@@ -171,7 +169,6 @@ struct BookContentImportTests {
                 ImportedBookChapter(title: "Ending", markdown: "## Ending\n\nKeep me."),
                 ImportedBookChapter(title: "New Chapter", markdown: "## New Chapter\n\nNew.")
             ]),
-            coverUpdate: .unchanged,
             at: referenceDate.addingTimeInterval(10)
         )
 
@@ -188,7 +185,6 @@ struct BookContentImportTests {
             chapterUpdate: .append([
                 ImportedBookChapter(title: "Appendix", markdown: "## Appendix\n\nExtra.")
             ]),
-            coverUpdate: .unchanged,
             at: referenceDate.addingTimeInterval(20)
         )
 
@@ -205,7 +201,6 @@ struct BookContentImportTests {
             contentChapters: [
                 ImportedBookChapter(title: "Opening", markdown: "## Opening\n\nOriginal.")
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
 
@@ -214,7 +209,6 @@ struct BookContentImportTests {
                 id: bookID,
                 metadata: BookMetadataInput(title: "Changed", authors: ["Changed Author"]),
                 chapterUpdate: .replace([]),
-                coverUpdate: .unchanged,
                 at: referenceDate.addingTimeInterval(30)
             )
         }

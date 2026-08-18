@@ -289,6 +289,7 @@ nonisolated struct Asset: Codable, Identifiable, Equatable, Hashable, Sendable {
     var byteCount: Int64
     var pixelWidth: Int?
     var pixelHeight: Int?
+    var isCurrentCover: Bool
     let createdAt: Date
     var updatedAt: Date
 
@@ -303,6 +304,7 @@ nonisolated struct Asset: Codable, Identifiable, Equatable, Hashable, Sendable {
         byteCount: Int64,
         pixelWidth: Int? = nil,
         pixelHeight: Int? = nil,
+        isCurrentCover: Bool = false,
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -316,6 +318,7 @@ nonisolated struct Asset: Codable, Identifiable, Equatable, Hashable, Sendable {
         self.byteCount = byteCount
         self.pixelWidth = pixelWidth
         self.pixelHeight = pixelHeight
+        self.isCurrentCover = isCurrentCover
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

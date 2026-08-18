@@ -5,6 +5,7 @@ struct LibraryRootView: View {
     @Environment(\.openWindow) private var openWindow
     @State private var model: LibraryViewModel
     @State private var editorConfiguration: BookEditorConfiguration?
+    @State private var coverManagerBook: LibraryBook?
     @State private var pendingBookIDToOpen: UUID?
     @State private var exportPresentation: BookExportPresentation?
     @State private var batchExportPresentation: BookBatchExportPresentation?
@@ -53,6 +54,9 @@ struct LibraryRootView: View {
                 },
                 onEditBook: { book in
                     editorConfiguration = .editing(book)
+                },
+                onManageCovers: { book in
+                    coverManagerBook = book
                 },
                 onExportBook: { book in
                     Task {
@@ -148,6 +152,9 @@ struct LibraryRootView: View {
                     editorConfiguration = nil
                 }
             )
+        }
+        .sheet(item: $coverManagerBook) { book in
+            CoverManagerView(book: book, model: model)
         }
         .fileExporter(
             isPresented: $isExportingBook,

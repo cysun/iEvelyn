@@ -27,15 +27,8 @@ nonisolated enum BookChapterUpdate: Equatable, Sendable {
     case append([ImportedBookChapter])
 }
 
-nonisolated enum BookCoverUpdate: Equatable, Sendable {
-    case unchanged
-    case replace(URL)
-    case remove
-}
-
 nonisolated struct BookEditorSubmission: Equatable, Sendable {
     let metadata: BookMetadataInput
     let contentFileURL: URL?
     let contentMode: BookContentFileMode
-    let coverUpdate: BookCoverUpdate
 }

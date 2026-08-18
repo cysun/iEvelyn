@@ -1,4 +1,4 @@
-# iEvelyn 1.1 user guide
+# iEvelyn 1.2 user guide
 
 iEvelyn is a private, local-first ebook library and reader for macOS 26 or
 later. It has no account, cloud sync, analytics, advertising, or telemetry.
@@ -19,22 +19,27 @@ begin chapters:
 
     Chapter text.
 
-The editor starts with title, first author, content file, and cover. **Show More
-Options** reveals subtitle, description, additional authors, and tags. JPEG,
-PNG, and HEIC covers are supported.
+The editor starts with title, first author, and content file. **Show More
+Options** reveals subtitle, description, additional authors, and tags.
 
 After a book is added successfully, iEvelyn opens it immediately in the reader.
 Saving changes through **Edit Book…** also reopens that book so the saved result
 is ready to read and becomes the most recently opened library item.
 
 Use a book's **More** menu to edit metadata, replace or append complete content,
-replace or remove its cover, add or remove it from Favorites, move it to Trash,
-clear its saved reading progress, or export it. Choose **Select** in an active
-library collection to select multiple books or **Select All**, then export EPUB
-or Markdown files, clear reading progress, or move the selected books to Trash.
-Select All applies to the currently visible destination and author/tag filter.
-Trash is recoverable until **Delete Permanently** is confirmed; **Empty Trash**
-permanently removes every book currently in Trash after confirmation.
+manage its covers, add or remove it from Favorites, move it to Trash, clear its
+saved reading progress, or export it. **Manage Covers…** accepts one or more
+JPEG, PNG, or HEIC images. It shows every stored cover, lets one be marked as
+the current cover used by the Library and EPUB export, and removes individual
+covers after confirmation. If the current cover is removed, another stored
+cover becomes current automatically.
+
+Choose **Select** in an active library collection to select multiple books or
+**Select All**, then export EPUB or Markdown files, clear reading progress, or
+move the selected books to Trash. Select All applies to the currently visible
+destination and author/tag filter. Trash is recoverable until **Delete
+Permanently** is confirmed; **Empty Trash** permanently removes every book
+currently in Trash after confirmation.
 
 ## Browse, search, and read
 
@@ -56,7 +61,9 @@ location, and **C** to expand or collapse the sidebar. Expanding the sidebar
 moves focus to it so **Up Arrow** and **Down Arrow** navigate the chapter list;
 collapsing it returns focus to the reader panel. The chapter-jump menu and
 **Command-F** Find in Book are also keyboard accessible. Reading position and
-appearance settings persist automatically.
+appearance settings persist automatically. The appearance popover offers
+System, Light, Sepia, Dark, and Antique Paper themes; Antique Paper uses a
+bundled old-book texture and remains fully offline.
 
 ## Supported Markdown and safety
 
@@ -115,14 +122,14 @@ folder.
   unavailable, restore a known-good .ievelynlibrary backup from the recovery
   screen. The backup is fully validated before the damaged library is touched,
   and failed activation swaps the previous directory back.
-- A missing cover falls back to generated artwork. Use **Edit Book…** to choose
-  the cover again or remove the broken reference.
+- A missing cover falls back to generated artwork. Use **Manage Covers…** to
+  remove the broken reference and add a replacement.
 - Backup, restore, and legacy import currently materialize their archives in
   memory. Very large libraries can temporarily require memory comparable to
   the database plus compressed and uncompressed assets.
 - The reader uses continuous vertical scrolling; a paginated column mode is not
-  included in version 1.1.
-- iEvelyn 1.1 supports macOS 26 or later and has no built-in updater.
+  included in version 1.2.
+- iEvelyn 1.2 supports macOS 26 or later and has no built-in updater.
 
 For the exact library bundle contract, see LIBRARY_BUNDLE_FORMAT.md. For the
 legacy import contract, see LEGACY_IMPORT.md.

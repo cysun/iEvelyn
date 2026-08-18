@@ -203,7 +203,6 @@ struct ReadingProgressBookmarkTests {
             chapterUpdate: .append([
                 ImportedBookChapter(title: "Appendix", markdown: "## Appendix\n\nExtra.")
             ]),
-            coverUpdate: .unchanged,
             at: referenceDate.addingTimeInterval(1)
         )
         #expect(try await repository.readingProgress(forBookID: bookID)?.chapterID == originalChapters[1].id)
@@ -215,7 +214,6 @@ struct ReadingProgressBookmarkTests {
             chapterUpdate: .replace([
                 ImportedBookChapter(title: "Opening", markdown: "## Opening\n\nChanged.")
             ]),
-            coverUpdate: .unchanged,
             at: referenceDate.addingTimeInterval(2)
         )
 
@@ -242,7 +240,6 @@ struct ReadingProgressBookmarkTests {
                 ImportedBookChapter(title: "Opening", markdown: "## Opening\n\nFirst."),
                 ImportedBookChapter(title: "Ending", markdown: "## Ending\n\nLast."),
             ],
-            coverSourceURL: nil,
             at: referenceDate
         )
         return (bookID, try await repository.chapters(forBookID: bookID))

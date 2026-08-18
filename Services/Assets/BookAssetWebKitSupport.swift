@@ -60,6 +60,9 @@ enum BookContentWebConfiguration {
         if let scheme = URLScheme(BookAssetReference.scheme) {
             configuration.urlSchemeHandlers[scheme] = BookAssetURLSchemeHandler(loader: assetLoader)
         }
+        if let scheme = URLScheme(ReaderBundledResource.scheme) {
+            configuration.urlSchemeHandlers[scheme] = ReaderBundledResourceURLSchemeHandler()
+        }
         return configuration
     }
 }

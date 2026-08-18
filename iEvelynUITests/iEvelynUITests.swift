@@ -46,7 +46,7 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(aboutCommand.waitForExistence(timeout: 5))
         aboutCommand.click()
         XCTAssertTrue(app.windows["About iEvelyn"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Version 1.1 (2)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Version 1.2 (3)"].waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.staticTexts["Copyright © 2026 Chengyu Sun. All rights reserved."].exists
         )
@@ -94,15 +94,31 @@ final class iEvelynUITests: XCTestCase {
         )
         let editBook = app.menuItems["Edit Book…"]
         XCTAssertTrue(editBook.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.menuItems["Manage Covers…"].exists)
         editBook.click()
 
-        XCTAssertTrue(
-            app.descendants(matching: .any)["book-editor-choose-cover"].waitForExistence(timeout: 5),
-            "The unified Edit Book form should own cover changes."
-        )
+        XCTAssertFalse(app.descendants(matching: .any)["book-editor-choose-cover"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["book-editor-content-mode"].exists)
         app.buttons["Cancel"].click()
         XCTAssertTrue(app.descendants(matching: .any)["library-grid"].waitForExistence(timeout: 5))
+
+        actions.click()
+        let manageCovers = app.menuItems["Manage Covers…"]
+        XCTAssertTrue(manageCovers.waitForExistence(timeout: 5))
+        manageCovers.click()
+        let managerSheet = app.sheets.firstMatch
+        XCTAssertTrue(managerSheet.waitForExistence(timeout: 5))
+        let addCovers = managerSheet.buttons["Add Cover Images…"].firstMatch
+        XCTAssertTrue(addCovers.waitForExistence(timeout: 5))
+        addCovers.click()
+        let coverPicker = app.sheets.element(boundBy: 1)
+        XCTAssertTrue(
+            coverPicker.waitForExistence(timeout: 5),
+            "Manage Covers should present the native multi-file image picker."
+        )
+        coverPicker.buttons["Cancel"].click()
+        XCTAssertTrue(coverPicker.waitForNonExistence(timeout: 5))
+        managerSheet.buttons["Done"].click()
     }
 
     @MainActor
@@ -394,7 +410,7 @@ final class iEvelynUITests: XCTestCase {
     }
 
     @MainActor
-    func testAddBookContentAndCoverButtonsOpenFilePickers() throws {
+    func testAddBookUsesOnlyTheContentFilePicker() throws {
         let app = launchApplication(seedSampleLibrary: false)
 
         app.descendants(matching: .any)["library-add-book"].click()
@@ -410,18 +426,7 @@ final class iEvelynUITests: XCTestCase {
         )
         contentPicker.buttons["Cancel"].click()
         XCTAssertTrue(contentPicker.waitForNonExistence(timeout: 5))
-
-        let coverButton = app.descendants(matching: .any)["book-editor-choose-cover"]
-        XCTAssertTrue(coverButton.waitForExistence(timeout: 5))
-        coverButton.click()
-
-        let coverPicker = app.sheets.element(boundBy: 1)
-        XCTAssertTrue(
-            coverPicker.waitForExistence(timeout: 5),
-            "Choose Cover should present the system file picker."
-        )
-        coverPicker.buttons["Cancel"].click()
-        XCTAssertTrue(coverPicker.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["book-editor-choose-cover"].exists)
     }
 
     @MainActor

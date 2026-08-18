@@ -55,9 +55,9 @@ struct LibraryAssetTests {
                 .map { String(format: "%02x", $0) }
                 .joined()
 
-            try await environment.repository.importCover(
+            try await environment.repository.addCovers(
                 bookID: bookID,
-                from: sourceURL,
+                from: [sourceURL],
                 at: referenceDate.addingTimeInterval(Double(index + 1))
             )
 
@@ -88,9 +88,9 @@ struct LibraryAssetTests {
         }
     }
 
-    @Test("Replacing and removing a cover commits the database first and cleans old files")
-    func replaceAndRemoveCover() async throws {
-        let environment = try makeEnvironment(named: "replace")
+    @Test("Multiple covers preserve files, change current selection, and promote deterministically")
+    func multipleCoverManagement() async throws {
+        let environment = try makeEnvironment(named: "multiple-covers")
         defer { removeTestDirectory(environment.rootURL) }
         let bookID = try await makeBook(in: environment.repository)
         let firstSource = environment.rootURL.appending(path: "first.png")
@@ -98,51 +98,68 @@ struct LibraryAssetTests {
         try writeImage(to: firstSource, type: .png)
         try writeImage(to: secondSource, type: .jpeg)
 
-        try await environment.repository.importCover(
+        try await environment.repository.addCovers(
             bookID: bookID,
-            from: firstSource,
+            from: [firstSource, secondSource],
             at: referenceDate
         )
-        let firstCover = try #require(
-            try await environment.repository.fetchLibraryBooks().first?.coverAsset
-        )
+        let initialCovers = try await environment.repository.coverAssets(forBookID: bookID)
+        #expect(initialCovers.count == 2)
+        let firstCover = try #require(initialCovers.first(where: { $0.mediaType == "image/png" }))
+        let secondCover = try #require(initialCovers.first(where: { $0.mediaType == "image/jpeg" }))
+        #expect(firstCover.isCurrentCover)
+        #expect(!secondCover.isCurrentCover)
         let firstStoredURL = try await environment.repository.resolveBookAssetURL(
             environment.repository.bookAssetURL(for: firstCover)
         )
         let firstThumbnailURL = try await environment.store.thumbnailURL(for: firstCover)
-
-        try await environment.repository.importCover(
-            bookID: bookID,
-            from: secondSource,
-            at: referenceDate.addingTimeInterval(60)
-        )
-        let replacedBook = try #require(
-            try await environment.repository.fetchLibraryBooks().first
-        )
-        let secondCover = try #require(replacedBook.coverAsset)
-        #expect(secondCover.id != firstCover.id)
-        #expect(secondCover.mediaType == "image/jpeg")
-        #expect(!FileManager.default.fileExists(atPath: firstStoredURL.path))
-        #expect(!FileManager.default.fileExists(atPath: firstThumbnailURL.path))
-        #expect(replacedBook.updatedAt == referenceDate.addingTimeInterval(60))
-
         let secondStoredURL = try await environment.repository.resolveBookAssetURL(
             environment.repository.bookAssetURL(for: secondCover)
         )
         let secondThumbnailURL = try await environment.store.thumbnailURL(for: secondCover)
+        _ = try await environment.repository.coverThumbnailData(for: firstCover)
+        _ = try await environment.repository.coverThumbnailData(for: secondCover)
+        #expect(FileManager.default.fileExists(atPath: firstStoredURL.path))
+        #expect(FileManager.default.fileExists(atPath: secondStoredURL.path))
+
+        try await environment.repository.setCurrentCover(
+            bookID: bookID,
+            coverID: secondCover.id,
+            at: referenceDate.addingTimeInterval(60)
+        )
+        let selectedBook = try #require(
+            try await environment.repository.fetchLibraryBooks().first
+        )
+        #expect(selectedBook.coverAsset?.id == secondCover.id)
+        #expect(selectedBook.coverAssets.count == 2)
+
         try await environment.repository.removeCover(
             bookID: bookID,
+            coverID: secondCover.id,
             at: referenceDate.addingTimeInterval(120)
         )
-
-        let coverAfterRemoval = try await environment.repository.fetchLibraryBooks().first?.coverAsset
-        #expect(coverAfterRemoval == nil)
+        let promotedBook = try #require(
+            try await environment.repository.fetchLibraryBooks().first
+        )
+        #expect(promotedBook.coverAsset?.id == firstCover.id)
+        #expect(promotedBook.coverAsset?.isCurrentCover == true)
+        #expect(FileManager.default.fileExists(atPath: firstStoredURL.path))
+        #expect(FileManager.default.fileExists(atPath: firstThumbnailURL.path))
         #expect(!FileManager.default.fileExists(atPath: secondStoredURL.path))
         #expect(!FileManager.default.fileExists(atPath: secondThumbnailURL.path))
+
+        try await environment.repository.removeCover(
+            bookID: bookID,
+            coverID: firstCover.id,
+            at: referenceDate.addingTimeInterval(180)
+        )
+        #expect(try await environment.repository.fetchLibraryBooks().first?.coverAsset == nil)
+        #expect(!FileManager.default.fileExists(atPath: firstStoredURL.path))
+        #expect(!FileManager.default.fileExists(atPath: firstThumbnailURL.path))
     }
 
-    @Test("Unified book create and update commit content with cover changes")
-    func unifiedBookAndCoverChanges() async throws {
+    @Test("Book metadata and content updates preserve separately managed covers")
+    func bookUpdatesPreserveManagedCovers() async throws {
         let environment = try makeEnvironment(named: "unified-book-cover")
         defer { removeTestDirectory(environment.rootURL) }
         let sourceURL = environment.rootURL.appending(path: "cover.png")
@@ -153,7 +170,11 @@ struct LibraryAssetTests {
             contentChapters: [
                 ImportedBookChapter(title: "Opening", markdown: "## Opening\n\nBody.")
             ],
-            coverSourceURL: sourceURL,
+            at: referenceDate
+        )
+        try await environment.repository.addCovers(
+            bookID: bookID,
+            from: [sourceURL],
             at: referenceDate
         )
         let createdBook = try #require(
@@ -170,7 +191,6 @@ struct LibraryAssetTests {
             id: bookID,
             metadata: BookMetadataInput(title: "Updated Unified Book", authors: ["Asset Tester"]),
             chapterUpdate: .unchanged,
-            coverUpdate: .remove,
             at: referenceDate.addingTimeInterval(60)
         )
 
@@ -178,9 +198,9 @@ struct LibraryAssetTests {
             try await environment.repository.fetchLibraryBooks().first(where: { $0.id == bookID })
         )
         #expect(updatedBook.title == "Updated Unified Book")
-        #expect(updatedBook.coverAsset == nil)
+        #expect(updatedBook.coverAsset?.id == cover.id)
         #expect(try await environment.repository.chapters(forBookID: bookID).map(\.title) == ["Opening"])
-        #expect(!FileManager.default.fileExists(atPath: storedURL.path))
+        #expect(FileManager.default.fileExists(atPath: storedURL.path))
     }
 
     @Test("Unsupported files are rejected without changing the library")
@@ -192,9 +212,9 @@ struct LibraryAssetTests {
         try Data("plain text".utf8).write(to: sourceURL, options: .atomic)
 
         do {
-            try await environment.repository.importCover(
+            try await environment.repository.addCovers(
                 bookID: bookID,
-                from: sourceURL,
+                from: [sourceURL],
                 at: referenceDate
             )
             Issue.record("Expected a non-image file to be rejected")
@@ -207,6 +227,32 @@ struct LibraryAssetTests {
         #expect(audit.orphanedRelativePaths.isEmpty)
     }
 
+    @Test("A failed multi-cover selection rolls back every prepared image")
+    func multiCoverPreparationFailureRollsBackAllFiles() async throws {
+        let environment = try makeEnvironment(named: "multi-cover-rollback")
+        defer { removeTestDirectory(environment.rootURL) }
+        let bookID = try await makeBook(in: environment.repository)
+        let validURL = environment.rootURL.appending(path: "valid.png")
+        let invalidURL = environment.rootURL.appending(path: "invalid.txt")
+        try writeImage(to: validURL, type: .png)
+        try Data("not an image".utf8).write(to: invalidURL, options: .atomic)
+
+        do {
+            try await environment.repository.addCovers(
+                bookID: bookID,
+                from: [validURL, invalidURL],
+                at: referenceDate
+            )
+            Issue.record("Expected the invalid image to roll back the complete selection")
+        } catch let error as LibraryAssetError {
+            #expect(error == .unsupportedImageFormat)
+        }
+
+        #expect(try await environment.repository.coverAssets(forBookID: bookID).isEmpty)
+        let audit = try await environment.repository.auditAssetStorage()
+        #expect(audit.orphanedRelativePaths.isEmpty)
+    }
+
     @Test("A database failure rolls back the asset record and copied files")
     func databaseFailureDiscardsPreparedFiles() async throws {
         let environment = try makeEnvironment(named: "atomic-failure")
@@ -215,9 +261,9 @@ struct LibraryAssetTests {
         try writeImage(to: sourceURL, type: .png)
 
         do {
-            try await environment.repository.importCover(
+            try await environment.repository.addCovers(
                 bookID: UUID(),
-                from: sourceURL,
+                from: [sourceURL],
                 at: referenceDate
             )
             Issue.record("Expected import for a missing book to fail")
@@ -239,9 +285,9 @@ struct LibraryAssetTests {
         try writeImage(to: sourceURL, type: .png)
 
         let importTask = Task {
-            try await environment.repository.importCover(
+            try await environment.repository.addCovers(
                 bookID: bookID,
-                from: sourceURL,
+                from: [sourceURL],
                 at: referenceDate
             )
         }
@@ -266,9 +312,9 @@ struct LibraryAssetTests {
         let bookID = try await makeBook(in: environment.repository)
         let sourceURL = environment.rootURL.appending(path: "cover.png")
         try writeImage(to: sourceURL, type: .png)
-        try await environment.repository.importCover(
+        try await environment.repository.addCovers(
             bookID: bookID,
-            from: sourceURL,
+            from: [sourceURL],
             at: referenceDate
         )
         let cover = try #require(
@@ -302,9 +348,9 @@ struct LibraryAssetTests {
         let bookID = try await makeBook(in: environment.repository)
         let sourceURL = environment.rootURL.appending(path: "cover.png")
         try writeImage(to: sourceURL, type: .png)
-        try await environment.repository.importCover(
+        try await environment.repository.addCovers(
             bookID: bookID,
-            from: sourceURL,
+            from: [sourceURL],
             at: referenceDate
         )
         let cover = try #require(
@@ -338,9 +384,9 @@ struct LibraryAssetTests {
             let bookID = try await makeBook(in: environment.repository)
             let sourceURL = environment.rootURL.appending(path: "cover-\(index).png")
             try writeImage(to: sourceURL, type: .png)
-            try await environment.repository.importCover(
+            try await environment.repository.addCovers(
                 bookID: bookID,
-                from: sourceURL,
+                from: [sourceURL],
                 at: referenceDate
             )
             let cover = try #require(
@@ -374,9 +420,9 @@ struct LibraryAssetTests {
         let sourceURL = environment.rootURL.appending(path: "cover.png")
         try writeImage(to: sourceURL, type: .png)
         let sourceData = try Data(contentsOf: sourceURL)
-        try await environment.repository.importCover(
+        try await environment.repository.addCovers(
             bookID: bookID,
-            from: sourceURL,
+            from: [sourceURL],
             at: referenceDate
         )
         let cover = try #require(

@@ -6,6 +6,7 @@ struct LibraryContentView: View {
     let onOpenBook: (LibraryBook) -> Void
     let onOpenSearchResult: (LibrarySearchResult) -> Void
     let onEditBook: (LibraryBook) -> Void
+    let onManageCovers: (LibraryBook) -> Void
     let onExportBook: (LibraryBook) -> Void
     let onExportMarkdown: (LibraryBook) -> Void
     let onExportBooksAsEPUB: ([LibraryBook]) async -> Bool
@@ -416,6 +417,8 @@ struct LibraryContentView: View {
         switch action {
         case .edit:
             onEditBook(book)
+        case .manageCovers:
+            onManageCovers(book)
         case .exportEPUB:
             onExportBook(book)
         case .exportMarkdown:
