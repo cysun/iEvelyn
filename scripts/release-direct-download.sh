@@ -5,19 +5,19 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PROJECT_PATH="$PROJECT_ROOT/iEvelyn.xcodeproj"
 SCHEME="iEvelyn"
-EXPECTED_VERSION="1.2"
-EXPECTED_BUILD="3"
+EXPECTED_VERSION="1.3"
+EXPECTED_BUILD="4"
 
-: "\${IEVELYN_DEVELOPMENT_TEAM:?Set IEVELYN_DEVELOPMENT_TEAM to the Apple Developer Team ID.}"
-: "\${IEVELYN_NOTARY_PROFILE:?Set IEVELYN_NOTARY_PROFILE to a validated notarytool Keychain profile.}"
+: "${IEVELYN_DEVELOPMENT_TEAM:?Set IEVELYN_DEVELOPMENT_TEAM to the Apple Developer Team ID.}"
+: "${IEVELYN_NOTARY_PROFILE:?Set IEVELYN_NOTARY_PROFILE to a validated notarytool Keychain profile.}"
 
-DEVELOPER_DIR="\${DEVELOPER_DIR:-/Volumes/galfrey/Applications/Xcode.app/Contents/Developer}"
-SOURCE_PACKAGES_DIR="\${IEVELYN_SOURCE_PACKAGES_DIR:-/Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages}"
-DERIVED_DATA_DIR="\${IEVELYN_RELEASE_DERIVED_DATA:-/Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step16-Release}"
-RELEASE_ROOT="\${IEVELYN_RELEASE_ROOT:-/Volumes/galfrey/Xcode/Release/iEvelyn-1.2-3}"
+DEVELOPER_DIR="${DEVELOPER_DIR:-/Volumes/galfrey/Applications/Xcode.app/Contents/Developer}"
+SOURCE_PACKAGES_DIR="${IEVELYN_SOURCE_PACKAGES_DIR:-/Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step3-SourcePackages}"
+DERIVED_DATA_DIR="${IEVELYN_RELEASE_DERIVED_DATA:-/Volumes/galfrey/Xcode/DerivedData/iEvelyn-Step16-Release}"
+RELEASE_ROOT="${IEVELYN_RELEASE_ROOT:-/Volumes/galfrey/Xcode/Release/iEvelyn-1.3-4}"
 ARCHIVE_PATH="$RELEASE_ROOT/iEvelyn.xcarchive"
 SUBMISSION_ZIP="$RELEASE_ROOT/iEvelyn-notarization.zip"
-FINAL_ZIP="$RELEASE_ROOT/iEvelyn-1.2-3-macOS.zip"
+FINAL_ZIP="$RELEASE_ROOT/iEvelyn-1.3-4-macOS.zip"
 SIGNED_ENTITLEMENTS="$RELEASE_ROOT/iEvelyn-signed-entitlements.plist"
 
 export DEVELOPER_DIR
@@ -71,7 +71,7 @@ if [[ "$SIGNING_DETAILS" != *"Authority=Developer ID Application:"* ||
     exit 1
 fi
 
-codesign --display --entitlements :- "$APP_PATH" > "$SIGNED_ENTITLEMENTS"
+codesign --display --entitlements - "$APP_PATH" > "$SIGNED_ENTITLEMENTS"
 plutil -p "$SIGNED_ENTITLEMENTS"
 if /usr/libexec/PlistBuddy -c "Print :com.apple.security.get-task-allow" \
     "$SIGNED_ENTITLEMENTS" >/dev/null 2>&1; then

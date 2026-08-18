@@ -6,7 +6,7 @@ import WebKit
 
 @Suite("Reading experience", .serialized)
 struct ReaderTests {
-    @Test("Reader bare-key commands map without overriding modified shortcuts")
+    @Test("Reader key commands map without overriding unrelated modified shortcuts")
     @MainActor
     func readerKeyboardCommands() throws {
         let bookmark = try #require(keyEvent(characters: "b", keyCode: 11))
@@ -18,7 +18,14 @@ struct ReaderTests {
         let commandBookmark = try #require(
             keyEvent(characters: "b", modifiers: .command, keyCode: 11)
         )
+        let commandFind = try #require(
+            keyEvent(characters: "f", modifiers: .command, keyCode: 3)
+        )
+        let commandShiftFind = try #require(
+            keyEvent(characters: "f", modifiers: [.command, .shift], keyCode: 3)
+        )
 
+        #expect(ReaderKeyCommand(event: commandFind) == .findInBook)
         #expect(ReaderKeyCommand(event: bookmark) == .addBookmark)
         #expect(ReaderKeyCommand(event: toggleSidebar) == .toggleSidebar)
         #expect(ReaderKeyCommand(event: previousChapter) == .previousChapter)
@@ -26,6 +33,28 @@ struct ReaderTests {
         #expect(ReaderKeyCommand(event: previousSidebarItem) == .previousSidebarItem)
         #expect(ReaderKeyCommand(event: nextSidebarItem) == .nextSidebarItem)
         #expect(ReaderKeyCommand(event: commandBookmark) == nil)
+        #expect(ReaderKeyCommand(event: commandShiftFind) == nil)
+    }
+
+    @Test("Reader toolbar controls hide for reading and return on toolbar hover")
+    func readerToolbarVisibility() {
+        var state = ReaderToolbarVisibilityState()
+        #expect(state.areControlsVisible)
+
+        state.readingDidBegin(keepsControlsVisible: false)
+        #expect(state.hasStartedReading)
+        #expect(!state.areControlsVisible)
+
+        state.pointerMoved(overToolbar: true)
+        #expect(state.areControlsVisible)
+        state.pointerMoved(overToolbar: false)
+        state.hideControlsIfAppropriate(keepsControlsVisible: true)
+        #expect(state.areControlsVisible)
+        state.hideControlsIfAppropriate(keepsControlsVisible: false)
+        #expect(!state.areControlsVisible)
+
+        state.reset()
+        #expect(state == ReaderToolbarVisibilityState())
     }
 
     @Test("Chapter navigation sorts deterministically and respects boundaries")
@@ -290,19 +319,20 @@ struct ReaderTests {
             fontSize: 22,
             lineHeight: 1.8,
             contentWidth: 72,
-            theme: .sepia
+            theme: .calm
         )
         let document = try ReaderDocumentStyler.apply(preferences, to: result.document)
 
         #expect(document.contains("Content-Security-Policy"))
-        #expect(document.contains("img-src book-asset: ievelyn-resource:"))
+        #expect(document.contains("img-src book-asset:;"))
         #expect(document.contains("<style id=\"reader-preferences\">"))
         #expect(document.contains("font-family: ui-monospace"))
         #expect(document.contains("font-size: 22.00px"))
         #expect(document.contains("line-height: 1.80"))
         #expect(document.contains("width: 72.00%"))
         #expect(document.contains("max-width: 88rem"))
-        #expect(document.contains("--page: #f4ecd8"))
+        #expect(document.contains("--page: #f3e4ce"))
+        #expect(document.contains("--text: #3d2f22"))
         #expect(document.contains("href=\"https://example.com\""))
         #expect(document.range(of: "reader-preferences")!.lowerBound < document.range(of: "</head>")!.lowerBound)
     }
@@ -320,9 +350,8 @@ struct ReaderTests {
         let expectedMarkers: [ReaderTheme: String] = [
             .system: "color-scheme: light dark",
             .light: "--page: #ffffff",
-            .sepia: "--page: #f4ecd8",
+            .calm: "--page: #f3e4ce",
             .dark: "--page: #1d1d1f",
-            .antiquePaper: ReaderBundledResource.antiquePaperURLString,
         ]
 
         var documents = Set<String>()
@@ -341,18 +370,6 @@ struct ReaderTests {
         }
 
         #expect(documents.count == ReaderTheme.allCases.count)
-        let antiquePaperURL = try #require(
-            URL(string: ReaderBundledResource.antiquePaperURLString)
-        )
-        let antiquePaperPayload = try ReaderBundledResource.payload(for: antiquePaperURL)
-        #expect(antiquePaperPayload.mediaType == "image/jpeg")
-        #expect(!antiquePaperPayload.data.isEmpty)
-        let invalidURL = try #require(
-            URL(string: "ievelyn-resource://reader/unknown.jpg")
-        )
-        #expect(throws: ReaderBundledResourceError.invalidURL) {
-            try ReaderBundledResource.payload(for: invalidURL)
-        }
     }
 
     @MainActor
@@ -440,7 +457,7 @@ struct ReaderTests {
         firstWindow.fontSize = 24
         firstWindow.lineHeight = 1.9
         firstWindow.contentWidth = 88
-        firstWindow.theme = .antiquePaper
+        firstWindow.theme = .calm
 
         let secondWindow = ReaderSettingsStore(defaults: defaults)
         #expect(secondWindow.preferences == ReaderPreferences(
@@ -448,8 +465,13 @@ struct ReaderTests {
             fontSize: 24,
             lineHeight: 1.9,
             contentWidth: 88,
-            theme: .antiquePaper
+            theme: .calm
         ))
+
+        defaults.set("sepia", forKey: "reader.theme")
+        #expect(ReaderSettingsStore(defaults: defaults).theme == .calm)
+        defaults.set("antiquePaper", forKey: "reader.theme")
+        #expect(ReaderSettingsStore(defaults: defaults).theme == .calm)
 
         secondWindow.reset()
         let thirdWindow = ReaderSettingsStore(defaults: defaults)

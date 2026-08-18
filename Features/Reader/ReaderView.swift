@@ -49,6 +49,8 @@ struct ReaderApplicationRootView: View {
 }
 
 struct ReaderView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     @State private var model: ReaderViewModel
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var sidebarMode: ReaderSidebarMode = .contents
@@ -58,6 +60,8 @@ struct ReaderView: View {
     @State private var bookmarkPendingDeletion: Bookmark?
     @State private var focusedArea = ReaderFocusArea.readerPanel
     @State private var focusRequestID = 0
+    @State private var toolbarVisibility = ReaderToolbarVisibilityState()
+    @State private var toolbarHideRequestID = 0
 
     let settings: ReaderSettingsStore
 
@@ -92,11 +96,50 @@ struct ReaderView: View {
         .toolbar {
             readerToolbar(settings: settings)
         }
+        .toolbar(removing: .sidebarToggle)
+        .toolbarBackground(
+            preferences.theme.pageBackgroundColor(colorScheme: colorScheme),
+            for: .windowToolbar
+        )
+        .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+        .toolbarColorScheme(
+            preferences.theme.toolbarColorScheme(systemColorScheme: colorScheme),
+            for: .windowToolbar
+        )
         .windowToolbarFullScreenVisibility(.onHover)
         .frame(minWidth: 720, idealWidth: 1_080, minHeight: 520, idealHeight: 760)
         .accessibilityIdentifier("reader-root")
+        .accessibilityActions {
+            if !toolbarVisibility.areControlsVisible {
+                Button(columnVisibility == .detailOnly ? "Show Sidebar" : "Hide Sidebar") {
+                    toggleSidebar()
+                }
+                Button("Previous Chapter") {
+                    model.movePrevious()
+                }
+                .disabled(!model.canMovePrevious)
+                Button("Next Chapter") {
+                    model.moveNext()
+                }
+                .disabled(!model.canMoveNext)
+                Button("Add Bookmark") {
+                    addBookmark()
+                }
+                .disabled(model.selectedChapter == nil || model.renderedChapter == nil)
+                Button("Find in Book") {
+                    toolbarVisibility.showControls()
+                    isFindPresented = true
+                }
+                .disabled(model.chapters.isEmpty)
+                Button("Reading Appearance") {
+                    toolbarVisibility.showControls()
+                    isAppearancePresented = true
+                }
+            }
+        }
         .background {
             ReaderKeyboardShortcutMonitor(onCommand: handleReaderKeyCommand)
+            ReaderWindowToolbarHoverMonitor(onHoverChange: handleToolbarHoverChange)
         }
         .task {
             await model.observe()
@@ -104,12 +147,42 @@ struct ReaderView: View {
         .task(id: renderRequestID) {
             await model.renderSelectedChapter(preferences: preferences)
         }
+        .task(id: renderRequestID) {
+            toolbarVisibility.reset()
+            do {
+                try await Task.sleep(for: .seconds(3))
+            } catch {
+                return
+            }
+            toolbarVisibility.readingDidBegin(
+                keepsControlsVisible: isToolbarPresentationActive
+            )
+        }
+        .task(id: toolbarHideRequestID) {
+            guard toolbarVisibility.hasStartedReading,
+                  !toolbarVisibility.isPointerOverToolbar,
+                  !isToolbarPresentationActive else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(1_500))
+            } catch {
+                return
+            }
+            toolbarVisibility.hideControlsIfAppropriate(
+                keepsControlsVisible: isToolbarPresentationActive
+            )
+        }
         .onDisappear {
             Task { await model.flushReadingProgress() }
         }
         .onChange(of: columnVisibility) { _, visibility in
             let sidebarIsVisible = visibility != .detailOnly
             requestFocus(sidebarIsVisible ? .sidebar : .readerPanel)
+        }
+        .onChange(of: isFindPresented) { _, isPresented in
+            handleToolbarPresentationChange(isPresented)
+        }
+        .onChange(of: isAppearancePresented) { _, isPresented in
+            handleToolbarPresentationChange(isPresented)
         }
         .safeAreaInset(edge: .bottom) {
             if let persistenceErrorMessage = model.persistenceErrorMessage {
@@ -311,6 +384,11 @@ struct ReaderView: View {
                     bookmarkNavigation: model.resolvedBookmarkNavigation(for: renderedChapter),
                     shouldFocus: focusedArea == .readerPanel,
                     focusRequestID: focusRequestID,
+                    onReadingActivity: {
+                        toolbarVisibility.readingDidBegin(
+                            keepsControlsVisible: isToolbarPresentationActive
+                        )
+                    },
                     onLocationChange: { location in
                         model.recordLocation(location, chapterID: renderedChapter.chapterID)
                     },
@@ -346,63 +424,77 @@ struct ReaderView: View {
 
     @ToolbarContentBuilder
     private func readerToolbar(settings: ReaderSettingsStore) -> some ToolbarContent {
-        ToolbarItemGroup(placement: .primaryAction) {
-            Button {
-                model.movePrevious()
-            } label: {
-                Label("Previous Chapter", systemImage: "chevron.left")
-            }
-            .disabled(!model.canMovePrevious)
-            .help("Previous Chapter (Left Arrow)")
-            .accessibilityIdentifier("reader-previous-chapter")
-
-            chapterJumpMenu
-
-            Button {
-                model.moveNext()
-            } label: {
-                Label("Next Chapter", systemImage: "chevron.right")
-            }
-            .disabled(!model.canMoveNext)
-            .help("Next Chapter (Right Arrow)")
-            .accessibilityIdentifier("reader-next-chapter")
-
-            Button(action: addBookmark) {
-                Label("Add Bookmark", systemImage: "bookmark")
-            }
-            .disabled(model.selectedChapter == nil || model.renderedChapter == nil)
-            .help("Add Bookmark (B)")
-            .accessibilityIdentifier("reader-add-bookmark")
-
-            Button {
-                isFindPresented.toggle()
-            } label: {
-                Label("Find in Book", systemImage: "magnifyingglass")
-            }
-            .disabled(model.chapters.isEmpty)
-            .keyboardShortcut("f", modifiers: .command)
-            .popover(isPresented: $isFindPresented, arrowEdge: .bottom) {
-                ReaderBookFindView(
-                    query: $findQuery,
-                    chapters: model.chapters
-                ) { chapterID in
-                    model.selectChapter(chapterID)
-                    isFindPresented = false
+        if toolbarVisibility.areControlsVisible {
+            ToolbarItem(placement: .navigation) {
+                Button {
+                    toggleSidebar()
+                } label: {
+                    Label(
+                        columnVisibility == .detailOnly ? "Show Sidebar" : "Hide Sidebar",
+                        systemImage: "sidebar.left"
+                    )
                 }
+                .help("Toggle Sidebar (C)")
+                .accessibilityIdentifier("reader-toggle-sidebar")
             }
-            .help("Find in Book (Command-F)")
-            .accessibilityIdentifier("reader-find")
 
-            Button {
-                isAppearancePresented.toggle()
-            } label: {
-                Label("Reading Appearance", systemImage: "textformat.size")
+            ToolbarItemGroup(placement: .primaryAction) {
+                Button {
+                    model.movePrevious()
+                } label: {
+                    Label("Previous Chapter", systemImage: "chevron.left")
+                }
+                .disabled(!model.canMovePrevious)
+                .help("Previous Chapter (Left Arrow)")
+                .accessibilityIdentifier("reader-previous-chapter")
+
+                chapterJumpMenu
+
+                Button {
+                    model.moveNext()
+                } label: {
+                    Label("Next Chapter", systemImage: "chevron.right")
+                }
+                .disabled(!model.canMoveNext)
+                .help("Next Chapter (Right Arrow)")
+                .accessibilityIdentifier("reader-next-chapter")
+
+                Button(action: addBookmark) {
+                    Label("Add Bookmark", systemImage: "bookmark")
+                }
+                .disabled(model.selectedChapter == nil || model.renderedChapter == nil)
+                .help("Add Bookmark (B)")
+                .accessibilityIdentifier("reader-add-bookmark")
+
+                Button {
+                    isFindPresented.toggle()
+                } label: {
+                    Label("Find in Book", systemImage: "magnifyingglass")
+                }
+                .disabled(model.chapters.isEmpty)
+                .popover(isPresented: $isFindPresented, arrowEdge: .bottom) {
+                    ReaderBookFindView(
+                        query: $findQuery,
+                        chapters: model.chapters
+                    ) { chapterID in
+                        model.selectChapter(chapterID)
+                        isFindPresented = false
+                    }
+                }
+                .help("Find in Book (Command-F)")
+                .accessibilityIdentifier("reader-find")
+
+                Button {
+                    isAppearancePresented.toggle()
+                } label: {
+                    Label("Reading Appearance", systemImage: "textformat.size")
+                }
+                .popover(isPresented: $isAppearancePresented, arrowEdge: .bottom) {
+                    ReaderAppearanceView(settings: settings)
+                }
+                .help("Reading Appearance")
+                .accessibilityIdentifier("reader-appearance")
             }
-            .popover(isPresented: $isAppearancePresented, arrowEdge: .bottom) {
-                ReaderAppearanceView(settings: settings)
-            }
-            .help("Reading Appearance")
-            .accessibilityIdentifier("reader-appearance")
         }
     }
 
@@ -448,11 +540,15 @@ struct ReaderView: View {
 
     private func handleReaderKeyCommand(_ command: ReaderKeyCommand) -> Bool {
         switch command {
+        case .findInBook:
+            toolbarVisibility.showControls()
+            isFindPresented = true
+            return true
         case .addBookmark:
             addBookmark()
             return true
         case .toggleSidebar:
-            columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+            toggleSidebar()
             return true
         case .previousChapter:
             if model.canMovePrevious {
@@ -484,12 +580,66 @@ struct ReaderView: View {
         focusRequestID &+= 1
     }
 
+    private func toggleSidebar() {
+        columnVisibility = columnVisibility == .detailOnly ? .all : .detailOnly
+    }
+
+    private var isToolbarPresentationActive: Bool {
+        isFindPresented || isAppearancePresented
+    }
+
+    private func handleToolbarHoverChange(_ isPointerOverToolbar: Bool) {
+        toolbarVisibility.pointerMoved(overToolbar: isPointerOverToolbar)
+        toolbarHideRequestID &+= 1
+    }
+
+    private func handleToolbarPresentationChange(_ isPresented: Bool) {
+        if isPresented {
+            toolbarVisibility.showControls()
+        }
+        toolbarHideRequestID &+= 1
+    }
+
     private func addBookmark() {
         guard model.selectedChapter != nil, model.renderedChapter != nil else { return }
         Task {
             if await model.addBookmark() {
                 sidebarMode = .bookmarks
             }
+        }
+    }
+}
+
+private extension ReaderTheme {
+    func pageBackgroundColor(colorScheme: ColorScheme) -> Color {
+        let components: (red: Double, green: Double, blue: Double)
+        switch self {
+        case .system:
+            components = colorScheme == .dark
+                ? (0x1d, 0x1d, 0x1f)
+                : (0xff, 0xff, 0xff)
+        case .light:
+            components = (0xff, 0xff, 0xff)
+        case .calm:
+            components = (0xf3, 0xe4, 0xce)
+        case .dark:
+            components = (0x1d, 0x1d, 0x1f)
+        }
+        return Color(
+            red: components.red / 255,
+            green: components.green / 255,
+            blue: components.blue / 255
+        )
+    }
+
+    func toolbarColorScheme(systemColorScheme: ColorScheme) -> ColorScheme {
+        switch self {
+        case .system:
+            systemColorScheme
+        case .light, .calm:
+            .light
+        case .dark:
+            .dark
         }
     }
 }

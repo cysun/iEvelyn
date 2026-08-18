@@ -46,7 +46,7 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(aboutCommand.waitForExistence(timeout: 5))
         aboutCommand.click()
         XCTAssertTrue(app.windows["About iEvelyn"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Version 1.2 (3)"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Version 1.3 (4)"].waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.staticTexts["Copyright © 2026 Chengyu Sun. All rights reserved."].exists
         )
@@ -770,40 +770,68 @@ final class iEvelynUITests: XCTestCase {
         let app = launchApplication(
             seedSampleLibrary: false,
             bookContent: """
-            # Reader Workflow
-            ### Test Author
+            # ReaderWorkflow
+            ### Test
             ## Opening
 
             Opening chapter body
             ## Ending
 
             Ending chapter body
-            """
+            """,
+            bookTitle: "ReaderWorkflow",
+            bookAuthor: "Test"
         )
 
         app.descendants(matching: .any)["library-add-book"].click()
         let title = app.textFields["book-editor-title"]
         let author = app.textFields["book-editor-author-0"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        title.click()
-        title.typeText("Reader Workflow")
-        author.click()
-        author.typeText("Test Author")
+        XCTAssertTrue(author.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.value as? String, "ReaderWorkflow")
+        XCTAssertEqual(author.value as? String, "Test")
         app.descendants(matching: .any)["book-editor-save"].click()
 
-        XCTAssertTrue(app.windows["Reader Workflow"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.windows["ReaderWorkflow"].waitForExistence(timeout: 10))
+        let openingChapterBody = app.staticTexts["Opening chapter body"]
         XCTAssertTrue(
-            app.staticTexts["Opening chapter body"].waitForExistence(timeout: 10),
+            openingChapterBody.waitForExistence(timeout: 10),
             "Opening a book should render its first chapter in the reader window."
         )
+
+        let readerToolbarToggle = app.descendants(matching: .any)["reader-toggle-sidebar"]
+        openingChapterBody.hover()
+        XCTAssertTrue(
+            readerToolbarToggle.waitForNonExistence(timeout: 6),
+            "Inactive reader toolbar items should be removed along with their native backgrounds."
+        )
+
+        app.typeKey("c", modifierFlags: [])
+        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            readerToolbarToggle.exists,
+            "Toggling the sidebar away from the toolbar must not recreate recessed controls."
+        )
+        app.typeKey("c", modifierFlags: [])
+        XCTAssertTrue(app.staticTexts["Table of Contents"].waitForNonExistence(timeout: 5))
+        XCTAssertFalse(readerToolbarToggle.exists)
+
+        let readerWindow = app.windows["ReaderWorkflow"]
+        readerWindow.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.02)
+        ).hover()
         let showSidebar = app.buttons["Show Sidebar"]
         XCTAssertTrue(
             showSidebar.waitForExistence(timeout: 5),
-            "A new reader window should start with its sidebar collapsed."
+            "Moving into the reader toolbar should restore its controls."
+        )
+        XCTAssertTrue(
+            readerToolbarToggle.exists,
+            "The reader should expose one auto-hiding sidebar control."
         )
         XCTAssertFalse(
             app.descendants(matching: .any)["reader-toggle-toc"].exists,
-            "The reader should rely on NavigationSplitView's single native sidebar control."
+            "The reader should not duplicate its sidebar control."
         )
 
         let nextChapter = app.descendants(matching: .any)["reader-next-chapter"]
@@ -836,6 +864,12 @@ final class iEvelynUITests: XCTestCase {
         XCTAssertTrue(
             app.staticTexts["Ending chapter body"].waitForExistence(timeout: 10),
             "Collapsing the sidebar should return focus to the reader panel."
+        )
+
+        app.staticTexts["Ending chapter body"].hover()
+        XCTAssertTrue(
+            readerToolbarToggle.waitForNonExistence(timeout: 5),
+            "Leaving the toolbar should remove the complete control items again."
         )
 
         app.typeKey("w", modifierFlags: .command)
@@ -885,7 +919,9 @@ final class iEvelynUITests: XCTestCase {
     @MainActor
     private func launchApplication(
         seedSampleLibrary: Bool,
-        bookContent: String? = nil
+        bookContent: String? = nil,
+        bookTitle: String? = nil,
+        bookAuthor: String? = nil
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += [
@@ -899,6 +935,10 @@ final class iEvelynUITests: XCTestCase {
         if let bookContent {
             app.launchEnvironment["IEVELYN_UI_TEST_CONTENT_BASE64"] =
                 Data(bookContent.utf8).base64EncodedString()
+        }
+        if let bookTitle, let bookAuthor {
+            app.launchEnvironment["IEVELYN_UI_TEST_BOOK_TITLE"] = bookTitle
+            app.launchEnvironment["IEVELYN_UI_TEST_BOOK_AUTHOR"] = bookAuthor
         }
         app.launch()
         return app

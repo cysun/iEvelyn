@@ -8,17 +8,17 @@ struct ReleaseReadinessTests {
     @MainActor
     func aboutContent() {
         let info = [
-            "CFBundleShortVersionString": "1.2",
-            "CFBundleVersion": "3",
+            "CFBundleShortVersionString": "1.3",
+            "CFBundleVersion": "4",
             "NSHumanReadableCopyright": "Copyright © 2026 Chengyu Sun. All rights reserved.",
         ]
 
-        #expect(AppIdentity.versionAndBuild(infoDictionary: info) == "Version 1.2 (3)")
+        #expect(AppIdentity.versionAndBuild(infoDictionary: info) == "Version 1.3 (4)")
         #expect(
             AppIdentity.copyright(infoDictionary: info)
                 == "Copyright © 2026 Chengyu Sun. All rights reserved."
         )
-        #expect(AppIdentity.versionAndBuild(infoDictionary: [:]) == "Version 1.2 (3)")
+        #expect(AppIdentity.versionAndBuild(infoDictionary: [:]) == "Version 1.3 (4)")
         #expect(AppIdentity.copyright(infoDictionary: [:]) == AppIdentity.fallbackCopyright)
     }
 

@@ -1,4 +1,4 @@
-# iEvelyn 1.2 user guide
+# iEvelyn 1.3 user guide
 
 iEvelyn is a private, local-first ebook library and reader for macOS 26 or
 later. It has no account, cloud sync, analytics, advertising, or telemetry.
@@ -62,8 +62,10 @@ moves focus to it so **Up Arrow** and **Down Arrow** navigate the chapter list;
 collapsing it returns focus to the reader panel. The chapter-jump menu and
 **Command-F** Find in Book are also keyboard accessible. Reading position and
 appearance settings persist automatically. The appearance popover offers
-System, Light, Sepia, Dark, and Antique Paper themes; Antique Paper uses a
-bundled old-book texture and remains fully offline.
+System, Light, Calm, and Dark themes. The reader toolbar uses the selected page
+color and its controls fade after reading begins or the page scrolls. Move the
+pointer into the toolbar to reveal them again; keyboard shortcuts and
+accessibility access remain available while the controls are visually recessed.
 
 ## Supported Markdown and safety
 
@@ -128,8 +130,8 @@ folder.
   memory. Very large libraries can temporarily require memory comparable to
   the database plus compressed and uncompressed assets.
 - The reader uses continuous vertical scrolling; a paginated column mode is not
-  included in version 1.2.
-- iEvelyn 1.2 supports macOS 26 or later and has no built-in updater.
+  included in version 1.3.
+- iEvelyn 1.3 supports macOS 26 or later and has no built-in updater.
 
 For the exact library bundle contract, see LIBRARY_BUNDLE_FORMAT.md. For the
 legacy import contract, see LEGACY_IMPORT.md.

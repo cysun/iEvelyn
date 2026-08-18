@@ -44,7 +44,13 @@ struct BookEditorView: View {
         self.configuration = configuration
         self.onCancel = onCancel
         self.onSave = onSave
-        _metadata = State(initialValue: configuration.metadata)
+        var initialMetadata = configuration.metadata
+        if configuration.bookID == nil,
+           let uiTestingMetadata = Self.uiTestingMetadata() {
+            initialMetadata.title = uiTestingMetadata.title
+            initialMetadata.authors = [uiTestingMetadata.author]
+        }
+        _metadata = State(initialValue: initialMetadata)
         _contentFileURL = State(
             initialValue: configuration.bookID == nil ? Self.uiTestingContentFileURL() : nil
         )
@@ -299,6 +305,22 @@ struct BookEditorView: View {
             assertionFailure("Could not prepare the UI-test content fixture: \(error)")
             return nil
         }
+#else
+        return nil
+#endif
+    }
+
+    private static func uiTestingMetadata(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> (title: String, author: String)? {
+#if DEBUG
+        guard arguments.contains("--ui-testing"),
+              let title = environment["IEVELYN_UI_TEST_BOOK_TITLE"],
+              let author = environment["IEVELYN_UI_TEST_BOOK_AUTHOR"] else {
+            return nil
+        }
+        return (title, author)
 #else
         return nil
 #endif

@@ -10,8 +10,8 @@ Read `PROJECT_CONTEXT.md` for product and architecture decisions and `AGENTS.md`
 
 ## Current status
 
-- Current milestone: Step 18 — reader theme reliability and multi-cover management, awaiting manual test.
-- Implementation status: Step 18 is implemented with passing Debug/Release builds and all 127 tests (113 unit/integration and 14 UI). It awaits the manual checkpoint. Step 16 remains blocked only on external Developer ID signing and notarization credentials; that external release-signing task does not affect the active functional milestone.
+- Current milestone: Step 18 — reader theme reliability and multi-cover management, accepted.
+- Implementation status: Step 18 is accepted. All 128 tests (114 unit/integration and 14 UI) passed during implementation. After the version 1.3 build 4 release update, all 114 unit/integration tests and clean Debug/Release builds passed again; Xcode 26.6 stalled in its macOS UI-test launch callback before the 14 UI tests could re-execute. Step 16 remains blocked only on external Developer ID signing and notarization credentials; that external release-signing task does not affect the completed functional milestone.
 - Xcode project: created with app, unit-test, and UI-test targets.
 - Git repository: initialized on `main` and tracking `origin/main`.
 - All step status changes require user confirmation after the manual checkpoint.
@@ -712,25 +712,26 @@ Make common maintenance and export actions efficient for a real library, then id
 - Open About iEvelyn and confirm it shows Version 1.1 (2).
 - Quit and relaunch; confirm the resulting library state persists.
 
-## Step 18 — Repair reader themes and add multi-cover management
+## Step 18 — Refine reader themes and add multi-cover management
 
 ### Goal
 
-Make reader appearance selection deterministic, add a textured reading option, and let each book retain multiple independently managed cover images.
+Make reader appearance selection deterministic and distraction-reduced, and let each book retain multiple independently managed cover images.
 
 ### Deliverables
 
-- Prevent stale rendered HTML from being loaded under a newer appearance request so Light, Sepia, Dark, System, and the new textured theme always match the selected value.
-- Add an `Antique Paper` reader theme backed by one bundled, offline-only aged-paper texture generated from the user's visual reference. Serve only that known resource through a narrow WebKit URL-scheme boundary and keep the existing content-security and external-navigation policies intact.
+- Prevent stale rendered HTML from being loaded under a newer appearance request so System, Light, Calm, and Dark always match the selected value.
+- Replace Sepia with a `Calm` theme whose page color (`#F3E4CE`) and primary text color (`#3D2F22`) are sampled from the supplied Apple Books reference. Remove Antique Paper and its bundled texture; migrate either retired saved selection to Calm.
+- Match the native reader toolbar background to the selected page theme. Remove its sidebar and reading controls after reading begins or the page scrolls, restore them when the pointer enters the toolbar, and keep keyboard and accessibility access available while they are recessed.
 - Add an ordered v4 GRDB migration that permits multiple cover-purpose assets per book, marks one cover as current, preserves every existing cover as current during migration, and enforces at most one current cover per book.
 - Keep one explicit current cover for library artwork and EPUB export. Additional covers remain authoritative book assets included in backup, restore, integrity checks, and permanent cleanup.
 - Remove cover selection and removal from Add Book and Edit Book. Add a separate `Manage Covers…` action with a native multi-file importer, cover gallery, Make Current, and confirmed Remove operations.
 - When adding covers to a book with no current cover, make the first added image current. Removing the current cover promotes the next cover deterministically; removing the last cover restores generated artwork.
-- Add no new third-party dependency. Identify the resulting release candidate as version 1.2 build 3, as explicitly requested after Step 18 implementation.
+- Add no new third-party dependency. Identify the resulting release candidate as version 1.3 build 4, as explicitly requested after Step 18 implementation.
 
 ### Automated checks
 
-- Reader tests cover every theme's distinct CSS, the Antique Paper resource URL, persisted selection, and rejection of stale rendered content for a newer request.
+- Reader tests cover every theme's distinct CSS, Calm's reference colors, retired-preference migration, persisted selection, toolbar visibility state, and rejection of stale rendered content for a newer request.
 - Migration tests prove an existing single cover is preserved and marked current, multiple covers are allowed afterward, and duplicate current covers are rejected.
 - Repository and asset tests cover multi-file add rollback, current-cover selection, deterministic promotion after removal, cleanup, and the read-only projection used by library artwork and EPUB export.
 - UI tests confirm Add/Edit Book no longer expose cover controls and `Manage Covers…` presents the dedicated cover workflow and native multi-file picker.
@@ -738,14 +739,15 @@ Make reader appearance selection deterministic, add a textured reading option, a
 
 ### Manual checkpoint
 
-- Open one reader and rapidly select Light, Sepia, Dark, System, and Antique Paper several times; confirm the final background always matches the selected theme and persists in another reader window and after relaunch.
-- Inspect Antique Paper with long prose, headings, links, code, quotes, tables, and images; confirm the texture stays subtle and text remains readable in windowed and full-screen modes.
+- Open one reader and rapidly select System, Light, Calm, and Dark several times; confirm the final background always matches the selected theme and persists in another reader window and after relaunch.
+- Select Calm and compare it with the supplied Apple Books reference; confirm the reader page and native top toolbar form one continuous pale cream surface in windowed and full-screen modes.
+- Leave the pointer in the reading area and wait, then scroll; confirm every toolbar control and its circle/pill background disappears while the window title remains. Toggle the sidebar with `C` while the pointer stays in the reading area and confirm the controls remain absent. Move the pointer into the toolbar and confirm every control returns; move away and confirm the controls recede again without interrupting Find in Book, the appearance popover, keyboard shortcuts, or VoiceOver access.
 - Add a new book and edit an existing book; confirm neither form contains cover controls.
 - Choose `Manage Covers…` from a book's More menu, add several JPEG/PNG/HEIC images in one selection, and confirm all appear without replacing one another.
 - Make different covers current and confirm the grid artwork and a newly exported EPUB follow the current selection.
 - Remove a non-current cover, then remove the current cover; confirm another cover is promoted. Remove the last cover and confirm generated artwork returns.
 - Quit and relaunch, then create and restore a backup; confirm every cover and the current selection persist.
-- Open About iEvelyn and confirm it shows Version 1.2 (3).
+- Open About iEvelyn and confirm it shows Version 1.3 (4).
 
 ## Progress table
 
@@ -775,7 +777,7 @@ Do not mark a step `Accepted` until the user confirms its manual checkpoint. At 
 | 15 | Native legacy-bundle importer | Accepted | Validated no-write review, explicit duplicate handling, new UUID mapping, asset-route rewriting, staged database/assets, full search rebuild, controlled reader rendering, retained reconciliation reports, atomic exchange, and rollback are implemented without a schema migration or dependency. Debug/Release builds and all 110 tests (99 unit/integration and 11 UI) pass; the successful live import checkpoint was accepted on 2026-08-16. |
 | 16 | Polish and release readiness | Blocked | Direct-download release work, version 1.0 build 1 identity, Chengyu Sun copyright, icon, polish, audits, tests, and unsigned archive validation are complete. The reader now starts with its sidebar collapsed and panel focused, uses B and Left/Right for bookmark and chapter commands, and uses C to toggle the sidebar with matching focus transfer; this correction was manually accepted on 2026-08-17. A signed, notarized archive still requires a Developer ID Application identity and notarytool Keychain profile on the release Mac. |
 | 17 | Batch library operations and reading-progress reset | Accepted | Selection-mode batch export, Trash, clear-progress, and Empty Trash operations are implemented with version 1.1 build 2 identity. Recently Opened is the new-window default, and successful Add/Edit saves dismiss the editor before opening and marking the saved book as recently opened. Debug/Release builds and all 123 tests (109 unit/integration and 14 UI) pass; the manual checkpoint was accepted on 2026-08-17. |
-| 18 | Reader theme reliability and multi-cover management | Awaiting manual test | Exact appearance request/render identity, bundled offline Antique Paper, a v4 multi-cover migration, dedicated cover management, and version 1.2 build 3 identity are implemented. Debug/Release builds and all 127 tests (113 unit/integration and 14 UI) pass. |
+| 18 | Reader theme reliability and multi-cover management | Accepted | Exact appearance request/render identity, screenshot-matched Calm styling, reader-matched auto-hiding toolbar controls, retired-theme migration, a v4 multi-cover migration, dedicated cover management, and version 1.3 build 4 identity are implemented. All 128 tests passed during implementation; the version 1.3 verification reran all 114 unit/integration tests and clean Debug/Release builds, while Xcode's UI-test launch callback stalled before the 14 UI tests could re-execute. The manual checkpoint was accepted on 2026-08-17. |
 
 ## Plan maintenance
 

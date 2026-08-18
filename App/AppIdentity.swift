@@ -18,8 +18,8 @@ enum AppIdentity {
         let version = stringValue(
             forKey: "CFBundleShortVersionString",
             in: infoDictionary
-        ) ?? "1.2"
-        let build = stringValue(forKey: "CFBundleVersion", in: infoDictionary) ?? "3"
+        ) ?? "1.3"
+        let build = stringValue(forKey: "CFBundleVersion", in: infoDictionary) ?? "4"
         return "Version \(version) (\(build))"
     }
 

@@ -9,6 +9,7 @@ struct ReaderWebView: View {
     let bookmarkNavigation: ReaderResolvedNavigation?
     let shouldFocus: Bool
     let focusRequestID: Int
+    let onReadingActivity: () -> Void
     let onLocationChange: (ReaderLocationCapture) -> Void
     let onBookmarkNavigationCompleted: (UUID) -> Void
 
@@ -31,6 +32,7 @@ struct ReaderWebView: View {
         bookmarkNavigation: ReaderResolvedNavigation?,
         shouldFocus: Bool,
         focusRequestID: Int,
+        onReadingActivity: @escaping () -> Void,
         onLocationChange: @escaping (ReaderLocationCapture) -> Void,
         onBookmarkNavigationCompleted: @escaping (UUID) -> Void
     ) {
@@ -40,6 +42,7 @@ struct ReaderWebView: View {
         self.bookmarkNavigation = bookmarkNavigation
         self.shouldFocus = shouldFocus
         self.focusRequestID = focusRequestID
+        self.onReadingActivity = onReadingActivity
         self.onLocationChange = onLocationChange
         self.onBookmarkNavigationCompleted = onBookmarkNavigationCompleted
 
@@ -165,7 +168,11 @@ struct ReaderWebView: View {
             let location = try await ReaderWebLocationBridge.capture(from: page)
             trackingErrorMessage = nil
             guard shouldReport(location) else { return }
+            let isReadingActivity = lastReportedLocation != nil
             lastReportedLocation = location
+            if isReadingActivity {
+                onReadingActivity()
+            }
             onLocationChange(location)
         } catch is CancellationError {
             return

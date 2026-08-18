@@ -54,9 +54,8 @@ nonisolated enum ReaderFontFamily: String, CaseIterable, Codable, Sendable {
 nonisolated enum ReaderTheme: String, CaseIterable, Codable, Sendable {
     case system
     case light
-    case sepia
+    case calm
     case dark
-    case antiquePaper
 
     var title: String {
         switch self {
@@ -64,12 +63,19 @@ nonisolated enum ReaderTheme: String, CaseIterable, Codable, Sendable {
             "System"
         case .light:
             "Light"
-        case .sepia:
-            "Sepia"
+        case .calm:
+            "Calm"
         case .dark:
             "Dark"
-        case .antiquePaper:
-            "Antique Paper"
+        }
+    }
+
+    static func persistedValue(_ rawValue: String) -> Self? {
+        switch rawValue {
+        case "sepia", "antiquePaper":
+            .calm
+        default:
+            Self(rawValue: rawValue)
         }
     }
 
@@ -95,18 +101,18 @@ nonisolated enum ReaderTheme: String, CaseIterable, Codable, Sendable {
               --warning: #fff4d6;
             }
             """
-        case .sepia:
+        case .calm:
             """
             :root {
               color-scheme: light;
-              --page: #f4ecd8;
-              --text: #3f3527;
-              --secondary: #746552;
-              --accent: #785d35;
-              --border: #cbbd9f;
-              --surface: #e8dcc2;
-              --quote: #e4d5b6;
-              --warning: #ead6a4;
+              --page: #f3e4ce;
+              --text: #3d2f22;
+              --secondary: #827566;
+              --accent: #745a36;
+              --border: #c7b69f;
+              --surface: #e7d5bc;
+              --quote: #e1cdb1;
+              --warning: #e6cc94;
             }
             """
         case .dark:
@@ -123,29 +129,38 @@ nonisolated enum ReaderTheme: String, CaseIterable, Codable, Sendable {
               --warning: #4b3b18;
             }
             """
-        case .antiquePaper:
-            """
-            :root {
-              color-scheme: light;
-              --page: #ead7a8;
-              --text: #3b2f20;
-              --secondary: #6e5b3e;
-              --accent: #765326;
-              --border: #b99c69;
-              --surface: rgba(231, 208, 160, 0.78);
-              --quote: rgba(219, 192, 139, 0.72);
-              --warning: rgba(224, 190, 112, 0.78);
-            }
-            html, body {
-              background-color: var(--page);
-              background-image: url("\(ReaderBundledResource.antiquePaperURLString)");
-              background-position: center;
-              background-repeat: no-repeat;
-              background-size: cover;
-              background-attachment: fixed;
-            }
-            """
         }
+    }
+}
+
+nonisolated struct ReaderToolbarVisibilityState: Equatable, Sendable {
+    private(set) var hasStartedReading = false
+    private(set) var isPointerOverToolbar = false
+    private(set) var areControlsVisible = true
+
+    mutating func reset() {
+        self = Self()
+    }
+
+    mutating func showControls() {
+        areControlsVisible = true
+    }
+
+    mutating func pointerMoved(overToolbar: Bool) {
+        isPointerOverToolbar = overToolbar
+        if overToolbar {
+            showControls()
+        }
+    }
+
+    mutating func readingDidBegin(keepsControlsVisible: Bool) {
+        hasStartedReading = true
+        hideControlsIfAppropriate(keepsControlsVisible: keepsControlsVisible)
+    }
+
+    mutating func hideControlsIfAppropriate(keepsControlsVisible: Bool) {
+        guard hasStartedReading, !isPointerOverToolbar, !keepsControlsVisible else { return }
+        areControlsVisible = false
     }
 }
 
@@ -217,7 +232,7 @@ final class ReaderSettingsStore {
             contentWidth: defaults.object(forKey: Key.contentWidth) == nil
                 ? fallback.contentWidth
                 : defaults.double(forKey: Key.contentWidth),
-            theme: defaults.string(forKey: Key.theme).flatMap(ReaderTheme.init(rawValue:))
+            theme: defaults.string(forKey: Key.theme).flatMap(ReaderTheme.persistedValue(_:))
                 ?? fallback.theme
         )
         fontFamily = storedPreferences.fontFamily

@@ -3,8 +3,8 @@ import SwiftUI
 import WebKit
 
 /// SwiftUI's macOS 26 `WebView` does not expose a reliable first-responder or
-/// unmodified-key-command API. These two narrow bridges keep keyboard handling
-/// scoped to one reader window while leaving text entry and other windows alone.
+/// unmodified-key-command API. These narrow bridges keep keyboard and native
+/// window-toolbar behavior scoped to one reader window.
 struct ReaderKeyboardShortcutMonitor: NSViewRepresentable {
     let onCommand: (ReaderKeyCommand) -> Bool
 
@@ -45,8 +45,10 @@ struct ReaderKeyboardShortcutMonitor: NSViewRepresentable {
                 guard let self,
                       let readerWindow = hostView?.window,
                       event.window === readerWindow,
-                      !Self.isTextEditing(in: readerWindow),
                       let command = ReaderKeyCommand(event: event) else {
+                    return event
+                }
+                if command != .findInBook, Self.isTextEditing(in: readerWindow) {
                     return event
                 }
                 return onCommand(command) ? nil : event
@@ -62,6 +64,105 @@ struct ReaderKeyboardShortcutMonitor: NSViewRepresentable {
 
         private static func isTextEditing(in window: NSWindow) -> Bool {
             window.firstResponder is NSTextView || window.firstResponder is NSTextField
+        }
+    }
+}
+
+/// SwiftUI has no hover region for the empty portion of a native window toolbar.
+/// This marker observes pointer movement in its own window and reports whether
+/// the pointer is above the unobscured content layout rectangle.
+struct ReaderWindowToolbarHoverMonitor: NSViewRepresentable {
+    let onHoverChange: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onHoverChange: onHoverChange)
+    }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = ReaderToolbarHoverMarkerView()
+        view.onWindowChange = { [weak coordinator = context.coordinator] in
+            coordinator?.windowDidChange()
+        }
+        context.coordinator.hostView = view
+        context.coordinator.installMonitorIfNeeded()
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        context.coordinator.hostView = nsView
+        context.coordinator.onHoverChange = onHoverChange
+        context.coordinator.installMonitorIfNeeded()
+        context.coordinator.windowDidChange()
+    }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.removeMonitor()
+    }
+
+    @MainActor
+    final class Coordinator {
+        weak var hostView: NSView?
+        var onHoverChange: (Bool) -> Void
+        private weak var observedWindow: NSWindow?
+        private var originalAcceptsMouseMovedEvents = false
+        private var isPointerOverToolbar = false
+        private var monitor: Any?
+
+        init(onHoverChange: @escaping (Bool) -> Void) {
+            self.onHoverChange = onHoverChange
+        }
+
+        func installMonitorIfNeeded() {
+            guard monitor == nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.mouseMoved, .leftMouseDragged]
+            ) { [weak self] event in
+                self?.handle(event)
+                return event
+            }
+        }
+
+        func windowDidChange() {
+            guard observedWindow !== hostView?.window else { return }
+            restoreWindowSetting()
+            observedWindow = hostView?.window
+            if let observedWindow {
+                originalAcceptsMouseMovedEvents = observedWindow.acceptsMouseMovedEvents
+                observedWindow.acceptsMouseMovedEvents = true
+            }
+        }
+
+        func removeMonitor() {
+            if let monitor {
+                NSEvent.removeMonitor(monitor)
+                self.monitor = nil
+            }
+            restoreWindowSetting()
+        }
+
+        private func handle(_ event: NSEvent) {
+            guard let observedWindow else {
+                updateHover(false)
+                return
+            }
+            let isOverToolbar = event.window === observedWindow
+                && event.locationInWindow.y >= observedWindow.contentLayoutRect.maxY
+            updateHover(isOverToolbar)
+        }
+
+        private func updateHover(_ isOverToolbar: Bool) {
+            guard isOverToolbar != isPointerOverToolbar else { return }
+            isPointerOverToolbar = isOverToolbar
+            onHoverChange(isOverToolbar)
+        }
+
+        private func restoreWindowSetting() {
+            observedWindow?.acceptsMouseMovedEvents = originalAcceptsMouseMovedEvents
+            observedWindow = nil
+            if isPointerOverToolbar {
+                isPointerOverToolbar = false
+                onHoverChange(false)
+            }
         }
     }
 }
@@ -133,7 +234,21 @@ private final class ReaderKeyboardMarkerView: NSView {
     }
 }
 
+private final class ReaderToolbarHoverMarkerView: NSView {
+    var onWindowChange: (() -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        onWindowChange?()
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+}
+
 enum ReaderKeyCommand: Equatable {
+    case findInBook
     case addBookmark
     case toggleSidebar
     case previousChapter
@@ -142,6 +257,15 @@ enum ReaderKeyCommand: Equatable {
     case nextSidebarItem
 
     init?(event: NSEvent) {
+        let shortcutModifiers = event.modifierFlags.intersection(
+            [.command, .control, .option, .shift]
+        )
+        if shortcutModifiers == .command,
+           event.charactersIgnoringModifiers?.lowercased() == "f" {
+            self = .findInBook
+            return
+        }
+
         let disallowedModifiers: NSEvent.ModifierFlags = [.command, .control, .option, .shift]
         guard event.modifierFlags.intersection(disallowedModifiers).isEmpty else { return nil }
 
